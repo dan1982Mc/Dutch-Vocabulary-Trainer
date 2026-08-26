@@ -2,19 +2,11 @@
    DUTCH VOCABULARY TRAINER V2.0
    dashboard.js - Architecture A
 
-   Presentation-independent dashboard calculations.
-   Uses the global APIs from db.js, selection.js, mastery.js and packs.js.
-   No ES modules/import/export are used.
+   Global classic-script API. No ES modules.
+   Uses db.js + selection.js as the canonical data/selection layer.
 ========================================================= */
 
-const DASHBOARD_EXERCISE_TYPES = [
-    "meaning",
-    "recall",
-    "fill",
-    "choose",
-    "production"
-];
-
+const DASHBOARD_EXERCISE_TYPES = ["meaning", "recall", "fill", "choose", "production"];
 const DASHBOARD_EXERCISE_LABELS = {
     meaning: "Meaning",
     recall: "Recall",
@@ -26,10 +18,6 @@ const DASHBOARD_EXERCISE_LABELS = {
 function dashboardNumber(value, fallback = 0) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
-}
-
-function dashboardWordId(word) {
-    return word?.id ?? word?.wordId ?? word?.uuid ?? null;
 }
 
 function dashboardMastery(word) {
@@ -44,10 +32,6 @@ function dashboardAttempts(word) {
 
 function dashboardCorrect(word) {
     return dashboardNumber(word?.stats?.correct, 0);
-}
-
-function dashboardIncorrect(word) {
-    return dashboardNumber(word?.stats?.incorrect, 0);
 }
 
 function dashboardIsNew(word) {
@@ -90,9 +74,7 @@ function calculateVocabularyStats(words = []) {
     const due = list.filter(dashboardIsDue).length;
     const isNew = list.filter(dashboardIsNew).length;
     const accuracy = attempts ? correct / attempts : 0;
-    const averageMastery = total
-        ? list.reduce((s, w) => s + dashboardMastery(w), 0) / total
-        : 0;
+    const averageMastery = total ? list.reduce((s, w) => s + dashboardMastery(w), 0) / total : 0;
 
     return {
         total,
@@ -152,15 +134,8 @@ function calculateSkillStats(words = []) {
     }
 
     const values = Object.values(result);
-    const overall = values.length
-        ? values.reduce((sum, item) => sum + item.score, 0) / values.length
-        : 0;
-
-    return {
-        byType: result,
-        overall,
-        overallPercent: Math.round(overall * 100)
-    };
+    const overall = values.length ? values.reduce((sum, item) => sum + item.score, 0) / values.length : 0;
+    return { byType: result, overall, overallPercent: Math.round(overall * 100) };
 }
 
 function calculateMasteryDistribution(words = []) {
@@ -177,9 +152,12 @@ function calculateMasteryDistribution(words = []) {
 
 async function calculatePackStatistics(words = []) {
     const groups = {};
-    const packs = typeof getAllPacks === "function" ? await getAllPacks() : [];
-    const packNames = {};
+    let packs = [];
+    try {
+        packs = typeof getAllPacks === "function" ? await getAllPacks() : [];
+    } catch (_) {}
 
+    const packNames = {};
     for (const pack of Array.isArray(packs) ? packs : []) {
         const id = String(pack.packId ?? pack.id ?? "");
         if (id) packNames[id] = pack.name ?? pack.title ?? id;
@@ -207,14 +185,9 @@ async function calculatePackStatistics(words = []) {
     }
 
     for (const group of Object.values(groups)) {
-        group.accuracyPercent = group.attempts
-            ? Math.round((group.correct / group.attempts) * 100)
-            : 0;
-        group.masteryPercent = group.total
-            ? Math.round(group.mastered / group.total * 100)
-            : 0;
+        group.accuracyPercent = group.attempts ? Math.round(group.correct / group.attempts * 100) : 0;
+        group.masteryPercent = group.total ? Math.round(group.mastered / group.total * 100) : 0;
     }
-
     return Object.values(groups);
 }
 
@@ -224,26 +197,33 @@ async function getDashboardData() {
         ? await getSelectedVocabulary()
         : allWords;
 
-    const selectedStats = calculateVocabularyStats(selectedWords);
-    const allStats = calculateVocabularyStats(allWords);
-
     return {
         generatedAt: new Date().toISOString(),
         selectedVocabulary: {
             words: selectedWords,
-            stats: selectedStats,
+            stats: calculateVocabularyStats(selectedWords),
             skills: calculateSkillStats(selectedWords),
             mastery: calculateMasteryDistribution(selectedWords),
             packs: await calculatePackStatistics(selectedWords)
         },
         allLoadedVocabulary: {
             words: allWords,
-            stats: allStats,
+            stats: calculateVocabularyStats(allWords),
             skills: calculateSkillStats(allWords),
             mastery: calculateMasteryDistribution(allWords),
             packs: await calculatePackStatistics(allWords)
         }
     };
+}
+
+function setDashboardValue(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value ?? "0";
+}
+
+function setDashboardProgress(id, percent) {
+    const element = document.getElementById(id);
+    if (element) element.style.width = `${Math.max(0, Math.min(100, Number(percent) || 0))}%`;
 }
 
 async function renderDashboard() {
@@ -252,11 +232,11 @@ async function renderDashboard() {
     const all = data.allLoadedVocabulary.stats;
     const skills = data.selectedVocabulary.skills.byType;
 
-    setDashboardValue("selectedFilterLabel",
-        typeof getVocabularySelectionLabel === "function"
-            ? getVocabularySelectionLabel(getVocabularySelection())
-            : "All Vocabulary");
-
+    let label = "All Vocabulary";
+    if (typeof getVocabularySelectionLabel === "function" && typeof getVocabularySelection === "function") {
+        label = getVocabularySelectionLabel(getVocabularySelection());
+    }
+    setDashboardValue("selectedFilterLabel", label);
     setDashboardValue("selectedLearned", selected.mastered);
     setDashboardValue("selectedDue", selected.due);
     setDashboardValue("selectedWeak", selected.weak);
@@ -271,42 +251,23 @@ async function renderDashboard() {
     setDashboardValue("allProgressText", `${all.masteryPercent}%`);
     setDashboardProgress("allProgressFill", all.masteryPercent);
 
-    const skillsContainer = document.getElementById("skillsContainer");
-    if (skillsContainer) {
-        skillsContainer.innerHTML = Object.values(skills).map(skill => `
+    const container = document.getElementById("skillsContainer");
+    if (container) {
+        container.innerHTML = Object.values(skills).map(skill => `
             <div class="skill-row">
-                <div class="skill-header">
-                    <span>${escapeHtml(skill.label)}</span>
-                    <strong>${skill.scorePercent}%</strong>
-                </div>
+                <div class="skill-header"><span>${escapeHtml(skill.label)}</span><strong>${skill.scorePercent}%</strong></div>
                 <div class="progress-bar"><div class="progress-fill" style="width:${skill.scorePercent}%"></div></div>
             </div>
         `).join("");
     }
-
     return data;
-}
-
-function setDashboardValue(id, value) {
-    const element = document.getElementById(id);
-    if (element) element.textContent = value ?? "0";
-}
-
-function setDashboardProgress(id, percent) {
-    const element = document.getElementById(id);
-    if (element) element.style.width = `${Math.max(0, Math.min(100, Number(percent) || 0))}%`;
 }
 
 async function initializeDashboard() {
     if (!document.getElementById("dashboardScreen")) return true;
-    try {
-        await renderDashboard();
-    } catch (error) {
-        console.error("Dashboard initialization failed", error);
-    }
+    try { await renderDashboard(); }
+    catch (error) { console.error("Dashboard initialization failed", error); }
     return true;
 }
 
 const initDashboard = initializeDashboard;
-const calculateSkillStats = calculateSkillStats;
-const calculatePackStats = calculatePackStatistics;
