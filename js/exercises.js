@@ -23,8 +23,8 @@ function meaningOptions(w,v){const supplied=Array.isArray(w?.meaningOptions)?w.m
 function chooseOptions(w,v){const supplied=Array.isArray(w?.wordOptions)?w.wordOptions:[];const others=otherWords(v,w).flatMap(x=>[dutch(x),...forms(x)]);return options([...supplied,...shuffle(others)],dutch(w))}
 function createExercise(word,type='meaning',vocabulary=[]){const t=normalizeExerciseType(type),example=examples(word)[0]||'',answers=acceptedAnswers(word),base={type:t,wordId:clean(word?.id),dutchWord:dutch(word),meaning:english(word),acceptedAnswers:answers};
 if(t==='meaning')return {...base,prompt:'What does this Dutch word mean?',context:dutch(word),inputType:'choice',options:meaningOptions(word,vocabulary),correctAnswer:english(word)};
-if(t==='choose'){const sentence=example?maskTarget(example,word):`Complete the sentence with the word "${dutch(word)}".`;return {...base,prompt:'Choose the Dutch word that completes the sentence.',context:sentence,example,sentence,inputType:'choice',options:chooseOptions(word,vocabulary),correctAnswer:dutch(word)}}
-if(t==='fill'){const sentence=example?maskTarget(example,word):`Complete the sentence with the word "${dutch(word)}".`;return {...base,prompt:'Complete the sentence.',context:sentence,example,sentence,inputType:'text',correctAnswer:dutch(word)}
+if(t==='choose'){const sentence=example?maskTarget(example,word):`Complete the sentence with the word "${dutch(word)}".`;return {...base,prompt:'Choose the Dutch word that completes the sentence.',context:sentence,example,sentence,inputType:'choice',options:chooseOptions(word,vocabulary),correctAnswer:dutch(word)};}
+if(t==='fill'){const sentence=example?maskTarget(example,word):`Complete the sentence with the word "${dutch(word)}".`;return {...base,prompt:'Complete the sentence.',context:sentence,example,sentence,inputType:'text',correctAnswer:dutch(word)};}
 if(t==='recall')return {...base,prompt:'What is the Dutch word or expression?',context:english(word),inputType:'text',correctAnswer:dutch(word)};
 return {...base,prompt:'Write the Dutch word or expression.',context:english(word),inputType:'text',correctAnswer:dutch(word)};
 }
