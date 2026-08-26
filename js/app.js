@@ -1,9 +1,6 @@
 /* =========================================================
    DUTCH VOCABULARY TRAINER V2.0
-   app.js
-
-   Main application controller.
-   Architecture A: canonical module APIs only.
+   app.js - main application controller
 ========================================================= */
 
 const APP_VERSION = "2.0.0";
@@ -13,7 +10,7 @@ const AppState = {
     version: APP_VERSION,
     initialized: false,
     initializing: false,
-    currentView: "dashboard",
+    currentView: "home",
     previousView: null,
     practiceSession: null,
     vocabularySelection: null,
@@ -23,341 +20,176 @@ const AppState = {
 };
 
 const APP_EVENTS = {
-    READY: "app-ready",
-    VIEW_CHANGED: "app-view-changed",
-    DATA_CHANGED: "app-data-changed",
-    SELECTION_CHANGED: "app-selection-changed",
-    PRACTICE_STARTED: "app-practice-started",
-    PRACTICE_ANSWERED: "app-practice-answered",
-    PRACTICE_COMPLETED: "app-practice-completed",
-    IMPORT_COMPLETED: "app-import-completed",
-    ERROR: "app-error"
+    READY: "app-ready", VIEW_CHANGED: "app-view-changed", DATA_CHANGED: "app-data-changed",
+    SELECTION_CHANGED: "app-selection-changed", PRACTICE_STARTED: "app-practice-started",
+    PRACTICE_ANSWERED: "app-practice-answered", PRACTICE_COMPLETED: "app-practice-completed",
+    IMPORT_COMPLETED: "app-import-completed", ERROR: "app-error"
 };
 
 function dispatchAppEvent(eventName, detail = {}) {
-    try {
-        window.dispatchEvent(new CustomEvent(eventName, {
-            detail: { ...detail, appVersion: APP_VERSION, timestamp: new Date().toISOString() }
-        }));
-    } catch (error) {
-        console.warn("Could not dispatch application event:", eventName, error);
-    }
+    try { window.dispatchEvent(new CustomEvent(eventName, { detail: { ...detail, appVersion: APP_VERSION, timestamp: new Date().toISOString() } })); } catch (_) {}
 }
-
 function handleAppError(error, context = "") {
-    AppState.lastError = error;
-    console.error(`[${APP_NAME}]`, context, error);
-    dispatchAppEvent(APP_EVENTS.ERROR, { error, context });
-    if (typeof showToast === "function") {
-        showToast(context ? `${context}: ${error.message || error}` : (error.message || String(error)), "error");
-    }
+    AppState.lastError = error; console.error(`[${APP_NAME}]`, context, error); dispatchAppEvent(APP_EVENTS.ERROR, { error, context });
+    if (typeof showToast === "function") showToast(context ? `${context}: ${error.message || error}` : (error.message || String(error)), "error");
     return error;
 }
 
-async function safelyExecute(callback, context = "") {
-    try { return await callback(); }
-    catch (error) { handleAppError(error, context); throw error; }
-}
-
-/* =========================================================
-   CANONICAL MODULE INITIALIZATION
-========================================================= */
-
-async function initializeStorageLayer() {
-    if (typeof initializeStorage !== "function") throw new Error("storage.js: initializeStorage() is unavailable.");
-    return await initializeStorage();
-}
-
 async function initializeDatabaseLayer() {
-    if (typeof initDatabase !== "function") throw new Error("db.js: initDatabase() is unavailable.");
-    return await initDatabase();
+    if (typeof initializeDB === "function") return initializeDB();
+    if (typeof initDatabase === "function") return initDatabase();
+    throw new Error("db.js: no database initialization API is available.");
 }
-
+async function initializeStorageLayer() {
+    /* storage.js is a synchronous localStorage/settings layer; there is no
+       initialization function and therefore nothing to await here. */
+    if (typeof getUISettings === "function") return getUISettings();
+    return true;
+}
 async function initializeMigrationLayer() {
     if (typeof runMigrations !== "function") throw new Error("migration.js: runMigrations() is unavailable.");
-    return await runMigrations();
+    return runMigrations();
 }
-
 async function initializePackLayer() {
-    if (typeof ensureDefaultPack !== "function") throw new Error("packs.js: ensureDefaultPack() is unavailable.");
-    return await ensureDefaultPack();
+    if (typeof ensureDefaultPack === "function") return ensureDefaultPack();
+    if (typeof ensureLegacyPack === "function") return ensureLegacyPack();
+    return true;
 }
-
 function initializeSelectionLayer() {
     if (typeof getVocabularySelection !== "function") throw new Error("selection.js: getVocabularySelection() is unavailable.");
     AppState.vocabularySelection = getVocabularySelection();
     return AppState.vocabularySelection;
 }
-
 async function initializeMasteryLayer() {
-    if (typeof recalculateAllMasteryStates === "function") return await recalculateAllMasteryStates();
+    if (typeof recalculateAllMasteryStates === "function") return recalculateAllMasteryStates();
     return { processed: 0 };
 }
-
-async function initializeUILayer() {
-    if (typeof initializeUI !== "function") throw new Error("ui.js: initializeUI() is unavailable.");
-    return await initializeUI();
-}
-
-async function initializeDashboardLayer() {
-    if (typeof initializeDashboard !== "function") throw new Error("dashboard.js: initializeDashboard() is unavailable.");
-    return await initializeDashboard();
-}
-
-async function initializePracticeLayer() {
-    if (typeof initializePractice !== "function") throw new Error("practice.js: initializePractice() is unavailable.");
-    return await initializePractice();
-}
-
 async function initializeSchedulerLayer() {
-    if (typeof initializeScheduler === "function") return await initializeScheduler();
-    if (window.DutchTrainerScheduler?.initialize) return await window.DutchTrainerScheduler.initialize();
+    if (typeof initializeScheduler === "function") return initializeScheduler();
+    if (window.DutchTrainerScheduler?.initialize) return window.DutchTrainerScheduler.initialize();
     return true;
 }
-
 async function initializeImportLayer() {
-    if (typeof initializeImport === "function") return await initializeImport();
+    if (typeof initializeImport === "function") return initializeImport();
     return true;
 }
-
-/* =========================================================
-   VOCABULARY / STATISTICS
-========================================================= */
-
-function refreshApplicationSelectionState() {
-    if (typeof getVocabularySelection === "function") AppState.vocabularySelection = getVocabularySelection();
-    dispatchAppEvent(APP_EVENTS.SELECTION_CHANGED, { selection: AppState.vocabularySelection });
-    return AppState.vocabularySelection;
+async function initializeDashboardLayer() {
+    if (typeof initializeDashboard === "function") return initializeDashboard();
+    return true;
+}
+async function initializePracticeLayer() {
+    if (typeof initializePractice === "function") return initializePractice();
+    return true;
 }
 
 async function getApplicationVocabulary() {
     if (typeof getAllWords !== "function") throw new Error("db.js: getAllWords() is unavailable.");
-    const words = await getAllWords();
-    return Array.isArray(words) ? words : [];
+    const words = await getAllWords(); return Array.isArray(words) ? words : [];
 }
-
 async function getApplicationSelectedVocabulary() {
     if (typeof getSelectedVocabulary !== "function") throw new Error("selection.js: getSelectedVocabulary() is unavailable.");
-    const words = await getSelectedVocabulary();
-    return Array.isArray(words) ? words : [];
+    const words = await getSelectedVocabulary(); return Array.isArray(words) ? words : [];
 }
-
-function getApplicationSelection() {
-    return refreshApplicationSelectionState();
-}
+function getApplicationSelection() { return typeof getVocabularySelection === "function" ? (AppState.vocabularySelection = getVocabularySelection()) : AppState.vocabularySelection; }
+function isApplicationSelectionAll() { const selection = getApplicationSelection(); return !selection || String(selection.source || "all").toLowerCase() === "all"; }
+function normalizeQuestionCount(value) { const n = Number(value); return Number.isFinite(n) ? Math.max(1, Math.min(500, Math.floor(n))) : 10; }
 
 async function changeApplicationSelection(source, packId = null) {
     const normalized = String(source || "all").trim().toLowerCase();
-    switch (normalized) {
-        case "pack":
-            if (typeof selectVocabularyPack !== "function") throw new Error("selection.js: selectVocabularyPack() is unavailable.");
-            await selectVocabularyPack(packId);
-            break;
-        case "new":
-            if (typeof selectNewVocabulary !== "function") throw new Error("selection.js: selectNewVocabulary() is unavailable.");
-            await selectNewVocabulary();
-            break;
-        case "weak":
-            if (typeof selectWeakVocabulary !== "function") throw new Error("selection.js: selectWeakVocabulary() is unavailable.");
-            await selectWeakVocabulary();
-            break;
-        case "due":
-            if (typeof selectDueVocabulary !== "function") throw new Error("selection.js: selectDueVocabulary() is unavailable.");
-            await selectDueVocabulary();
-            break;
-        case "all":
-        default:
-            if (typeof selectAllVocabulary !== "function") throw new Error("selection.js: selectAllVocabulary() is unavailable.");
-            await selectAllVocabulary();
-            break;
-    }
+    const calls = {
+        all: () => selectAllVocabulary(), pack: () => selectVocabularyPack(packId),
+        new: () => selectNewVocabulary(), weak: () => selectWeakVocabulary(), due: () => selectDueVocabulary()
+    };
+    if (typeof calls[normalized] !== "function") return getApplicationSelection();
+    await calls[normalized]();
     AppState.vocabularySelection = getVocabularySelection();
     dispatchAppEvent(APP_EVENTS.SELECTION_CHANGED, { selection: AppState.vocabularySelection });
     await refreshApplicationStatistics();
     return AppState.vocabularySelection;
 }
-
 async function refreshApplicationStatistics() {
     try {
-        const allWords = await getApplicationVocabulary();
-        const selectedWords = await getApplicationSelectedVocabulary();
-        const allStats = typeof calculateVocabularyStats === "function" ? calculateVocabularyStats(allWords) : null;
-        const selectedStats = typeof calculateVocabularyStats === "function" ? calculateVocabularyStats(selectedWords) : null;
-        const skills = typeof calculateSkillStats === "function" ? calculateSkillStats(selectedWords) : null;
-        const packStats = typeof calculatePackStatistics === "function" ? await calculatePackStatistics(allWords) : null;
-        AppState.statistics = { selected: selectedStats, all: allStats, skills, packs: packStats, updatedAt: new Date().toISOString() };
+        const allWords = await getApplicationVocabulary(), selectedWords = await getApplicationSelectedVocabulary();
+        const stats = typeof calculateVocabularyStats === "function" ? calculateVocabularyStats : null;
+        AppState.statistics = {
+            selected: stats ? stats(selectedWords) : null, all: stats ? stats(allWords) : null,
+            skills: typeof calculateSkillStats === "function" ? calculateSkillStats(selectedWords) : null,
+            updatedAt: new Date().toISOString()
+        };
         return AppState.statistics;
-    } catch (error) {
-        handleAppError(error, "Refreshing application statistics");
-        return AppState.statistics;
-    }
+    } catch (error) { handleAppError(error, "Refreshing application statistics"); return AppState.statistics; }
 }
-
-/* =========================================================
-   APPLICATION NAVIGATION
-
-   UI navigation remains owned by ui.js. The application
-   controller exposes a namespaced navigation method without
-   overwriting the global navigateTo() function.
-========================================================= */
-
-async function navigateApplicationTo(view, options = {}) {
-    const normalizedView = String(view || "").trim().toLowerCase();
-    const aliases = { home: "home", dashboard: "dashboard", practice: "practice", "start-practice": "start-practice", startpractice: "start-practice", import: "import", settings: "settings" };
-    const targetView = aliases[normalizedView];
-    if (!targetView) { console.warn("Unknown application view:", view); return false; }
-
-    if (AppState.currentView !== targetView) await runViewExitHook(AppState.currentView);
-    AppState.previousView = AppState.currentView;
-    AppState.currentView = targetView;
-
-    if (typeof renderView === "function") await renderView(targetView, options);
-    else if (typeof showView === "function") await showView(targetView, options);
-    else showViewFallback(targetView);
-
-    await runViewEnterHook(targetView, options);
-    dispatchAppEvent(APP_EVENTS.VIEW_CHANGED, { view: targetView, previousView: AppState.previousView, options });
-    return true;
-}
-
-async function runViewExitHook(view) {
-    try {
-        if (view === "practice" && typeof onPracticeViewExit === "function") await onPracticeViewExit();
-        if (view === "dashboard" && typeof onDashboardViewExit === "function") await onDashboardViewExit();
-        if (view === "import" && typeof onImportViewExit === "function") await onImportViewExit();
-    } catch (error) { handleAppError(error, `Leaving ${view}`); }
-}
-
-async function runViewEnterHook(view, options = {}) {
-    switch (view) {
-        case "dashboard":
-            if (typeof refreshDashboard === "function") await refreshDashboard();
-            break;
-        case "practice":
-            if (typeof showPracticeSetup === "function") await showPracticeSetup(options);
-            break;
-        case "start-practice":
-            await startQuickPractice(options);
-            break;
-        case "import":
-            if (typeof showImportView === "function") await showImportView();
-            break;
-        case "settings":
-            if (typeof showSettingsView === "function") await showSettingsView();
-            break;
-    }
-}
-
-function showViewFallback(view) {
-    const screenId = view === "start-practice" ? "practiceScreen" : `${view}Screen`;
-    document.querySelectorAll(".screen").forEach(element => element.classList.remove("active"));
-    const target = document.getElementById(screenId);
-    if (target) target.classList.add("active");
-}
-
-/* =========================================================
-   QUICK PRACTICE
-========================================================= */
 
 async function startQuickPractice(options = {}) {
     const selected = await getApplicationSelectedVocabulary();
     const allWords = selected.length && !isApplicationSelectionAll() ? selected : await getApplicationVocabulary();
-    const quickWords = typeof selectStartPracticeWords === "function"
-        ? selectStartPracticeWords(allWords, normalizeQuestionCount(options.questionCount ?? 10))
-        : allWords;
     const questionCount = normalizeQuestionCount(options.questionCount ?? 10);
-
-    const practiceOptions = {
-        ...options,
-        mode: "start",
-        exerciseType: "meaning",
-        questionCount,
-        vocabulary: quickWords
-    };
-
-    dispatchAppEvent(APP_EVENTS.PRACTICE_STARTED, {
-        mode: "start",
-        exerciseType: "meaning",
-        questionCount,
-        vocabularyCount: quickWords.length
-    });
-
-    if (typeof startPracticeSession !== "function") throw new Error("practice.js: startPracticeSession() is unavailable.");
-    const session = await startPracticeSession(practiceOptions);
+    const quickWords = typeof selectStartPracticeWords === "function" ? selectStartPracticeWords(allWords, questionCount) : allWords.slice(0, questionCount);
+    const session = await startPracticeSession({ ...options, mode: "start", exerciseType: "meaning", questionCount, vocabulary: quickWords });
     AppState.practiceSession = session;
+    if (session?.success) navigateTo("practice");
+    dispatchAppEvent(APP_EVENTS.PRACTICE_STARTED, { mode: "start", exerciseType: "meaning", questionCount, vocabularyCount: quickWords.length });
     return session;
 }
 
-function isApplicationSelectionAll() {
-    const selection = getApplicationSelection();
-    return !selection || String(selection.source || "all").toLowerCase() === "all";
+async function startConfiguredPractice() {
+    const type = document.getElementById("exerciseType")?.value || "meaning";
+    const custom = document.getElementById("customQuestionCount")?.value;
+    const activePreset = document.querySelector(".countPreset.active")?.dataset.value;
+    const count = normalizeQuestionCount(custom || activePreset || 20);
+    const filter = document.getElementById("vocabularyFilter")?.value || "all";
+    const packId = document.getElementById("packSelector")?.value || "all";
+    await changeApplicationSelection(filter, filter === "pack" ? packId : null);
+    closeModal("practiceModal");
+    const session = await startPracticeSession({ exerciseType: type, questionCount: count, mode: "full" });
+    AppState.practiceSession = session;
+    if (session?.success) navigateTo("practice");
+    return session;
 }
 
-function normalizeQuestionCount(value) {
-    const count = Number(value);
-    if (!Number.isFinite(count)) return 10;
-    return Math.max(1, Math.min(500, Math.floor(count)));
+async function checkCurrentAnswer() {
+    const area = document.getElementById("answerArea");
+    const input = area?.querySelector("input, textarea, select");
+    const answer = input ? (input.value ?? "") : "";
+    return startPracticeAnswer(answer);
 }
-
-/* =========================================================
-   BOOTSTRAP
-========================================================= */
+async function startPracticeAnswer(answer) {
+    const result = await checkPracticeAnswer(answer);
+    if (result?.success) renderCurrentPracticeFeedback(result);
+    return result;
+}
+function renderCurrentPracticeFeedback(result) {
+    const feedback = document.getElementById("feedbackArea");
+    if (feedback && result.feedback) feedback.textContent = result.feedback.correct ? "Correct!" : `Correct answer: ${result.feedback.correctAnswer || ""}`;
+    const check = document.getElementById("checkBtn"), next = document.getElementById("nextBtn");
+    if (check) check.classList.add("hidden"); if (next) next.classList.remove("hidden");
+}
+async function goToNextPracticeQuestion() { const result = nextPracticeQuestion(); if (result?.completed) { navigateTo("complete"); return result; } if (typeof renderPracticeQuestion === "function") await renderPracticeQuestion(result.question); return result; }
 
 async function initializeApplication() {
     if (AppState.initialized) return AppState;
     if (AppState.initializationPromise) return AppState.initializationPromise;
-
     AppState.initializationPromise = (async () => {
         AppState.initializing = true;
         try {
-            await initializeDatabaseLayer();
-            await initializeStorageLayer();
-            await initializeMigrationLayer();
-            await initializePackLayer();
-            initializeSelectionLayer();
-            await initializeMasteryLayer();
-            await initializeSchedulerLayer();
-            await initializeImportLayer();
-            await initializeUILayer();
-            await initializeDashboardLayer();
-            await initializePracticeLayer();
+            await initializeDatabaseLayer(); await initializeStorageLayer(); await initializeMigrationLayer(); await initializePackLayer();
+            initializeSelectionLayer(); await initializeMasteryLayer(); await initializeSchedulerLayer(); await initializeImportLayer();
+            await initializeDashboardLayer(); await initializePracticeLayer();
             await refreshApplicationStatistics();
-            AppState.initialized = true;
-            dispatchAppEvent(APP_EVENTS.READY, { state: AppState });
+            if (typeof initializeUI === "function") initializeUI();
+            AppState.initialized = true; dispatchAppEvent(APP_EVENTS.READY, { state: AppState });
             return AppState;
-        } catch (error) {
-            handleAppError(error, "Application initialization");
-            throw error;
-        } finally {
-            AppState.initializing = false;
-        }
+        } catch (error) { handleAppError(error, "Application initialization"); throw error; }
+        finally { AppState.initializing = false; }
     })();
-
-    try { return await AppState.initializationPromise; }
-    finally { AppState.initializationPromise = null; }
+    try { return await AppState.initializationPromise; } finally { AppState.initializationPromise = null; }
 }
 
-const initApp = initializeApplication;
-
-/* =========================================================
-   GLOBAL API
-========================================================= */
-
 window.DutchTrainerApp = {
-    version: APP_VERSION,
-    state: AppState,
-    events: APP_EVENTS,
-    initialize: initializeApplication,
-    init: initializeApplication,
-    navigateTo: navigateApplicationTo,
-    startQuickPractice,
-    getVocabulary: getApplicationVocabulary,
-    getSelectedVocabulary: getApplicationSelectedVocabulary,
-    getSelection: getApplicationSelection,
-    changeSelection: changeApplicationSelection,
-    refreshStatistics: refreshApplicationStatistics
+    version: APP_VERSION, state: AppState, events: APP_EVENTS, initialize: initializeApplication,
+    init: initializeApplication, navigateTo: navigateTo, startQuickPractice, startConfiguredPractice,
+    checkCurrentAnswer, goToNextPracticeQuestion, getVocabulary: getApplicationVocabulary,
+    getSelectedVocabulary: getApplicationSelectedVocabulary, getSelection: getApplicationSelection,
+    changeSelection: changeApplicationSelection, refreshStatistics: refreshApplicationStatistics
 };
-
-window.addEventListener("DOMContentLoaded", () => {
-    initializeApplication().catch(() => {});
-});
+window.addEventListener("DOMContentLoaded", () => initializeApplication().catch(() => {}));
