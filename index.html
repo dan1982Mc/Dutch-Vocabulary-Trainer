@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>Dutch Vocabulary Trainer V2.0</title>
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<header class="topbar">
+
+    <div class="brand">
+
+        <h1>Dutch Vocabulary Trainer</h1>
+
+        <span class="version">V2.0 Offline</span>
+
+    </div>
+
+</header>
+
+<main id="app">
+
+<!-- ======================================================
+HOME
+====================================================== -->
+
+<section id="homeScreen" class="screen active">
+
+<div class="home-buttons">
+
+<button id="quickPracticeBtn" class="primary large">
+
+⚡ Start Practice
+
+</button>
+
+<button id="practiceSetupBtn" class="secondary large">
+
+🎯 Practice
+
+</button>
+
+</div>
+
+<div class="home-actions">
+
+<button id="dashboardBtn">Dashboard</button>
+
+<button id="packsBtn">Word Packs</button>
+
+<button id="historyBtn">History</button>
+
+<button id="settingsBtn">Settings</button>
+
+</div>
+
+</section>
+
+<!-- ======================================================
+DASHBOARD
+====================================================== -->
+
+<section id="dashboardScreen" class="screen">
+
+<div class="screen-header">
+
+<h2>Dashboard</h2>
+
+<button class="backBtn">← Home</button>
+
+</div>
+
+<!-- Selected Vocabulary -->
+
+<div class="card">
+
+<h3>Selected Vocabulary</h3>
+
+<p id="selectedFilterLabel">All Vocabulary</p>
+
+<div class="progress-wrapper">
+
+<div class="progress-bar">
+
+<div id="selectedProgressFill" class="progress-fill"></div>
+
+</div>
+
+<span id="selectedProgressText">0%</span>
+
+</div>
+
+<div class="stats-grid">
+
+<div class="stat">
+<span id="selectedLearned">0</span>
+<label>Learned</label>
+</div>
+
+<div class="stat">
+<span id="selectedDue">0</span>
+<label>Due</label>
+</div>
+
+<div class="stat">
+<span id="selectedWeak">0</span>
+<label>Weak</label>
+</div>
+
+<div class="stat">
+<span id="selectedNew">0</span>
+<label>New</label>
+</div>
+
+</div>
+
+</div>
+
+<!-- Skills -->
+
+<div class="card">
+
+<h3>Skills</h3>
+
+<div id="skillsContainer"></div>
+
+</div>
+
+<!-- All Vocabulary -->
+
+<div class="card">
+
+<h3>All Loaded Vocabulary</h3>
+
+<div class="progress-wrapper">
+
+<div class="progress-bar">
+
+<div id="allProgressFill" class="progress-fill"></div>
+
+</div>
+
+<span id="allProgressText">0%</span>
+
+</div>
+
+<div class="stats-grid">
+
+<div class="stat">
+<span id="allWords">0</span>
+<label>Total</label>
+</div>
+
+<div class="stat">
+<span id="allLearned">0</span>
+<label>Learned</label>
+</div>
+
+<div class="stat">
+<span id="allDue">0</span>
+<label>Due</label>
+</div>
+
+<div class="stat">
+<span id="allWeak">0</span>
+<label>Weak</label>
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- ======================================================
+PRACTICE
+====================================================== -->
+
+<section id="practiceScreen" class="screen">
+
+<div class="practice-header">
+
+<div>
+
+<h2 id="practiceTitle">Practice</h2>
+
+<p id="practiceSubtitle"></p>
+
+</div>
+
+<button id="exitPracticeBtn">Exit</button>
+
+</div>
+
+<div class="practice-progress">
+
+<div class="progress-bar">
+
+<div id="sessionProgressFill" class="progress-fill"></div>
+
+</div>
+
+<span id="sessionCounter">0/0</span>
+
+</div>
+
+<div id="questionCard" class="card question-card">
+
+<div id="exerciseBadge" class="exercise-badge">Meaning</div>
+
+<h3 id="questionPrompt"></h3>
+
+<p id="questionContext"></p>
+
+<div id="answerArea"></div>
+
+<div id="feedbackArea"></div>
+
+</div>
+
+<div class="practice-actions">
+
+<button id="checkBtn" class="primary">Check Answer</button>
+
+<button id="nextBtn" class="secondary hidden">Next Question</button>
+
+</div>
+
+</section>
+
+<!-- ======================================================
+SESSION COMPLETE
+====================================================== -->
+
+<section id="completeScreen" class="screen">
+
+<div class="card centered">
+
+<h2>Session Complete</h2>
+
+<div id="sessionScore"></div>
+
+<div id="sessionSummary"></div>
+
+<div class="complete-buttons">
+
+<button id="practiceAgainBtn" class="primary">
+
+Practice Again
+
+</button>
+
+<button id="backDashboardBtn" class="secondary">
+
+Back to Dashboard
+
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- ======================================================
+PRACTICE SETUP MODAL
+====================================================== -->
+
+<div id="practiceModal" class="modal hidden">
+
+<div class="modal-content">
+
+<div class="modal-header">
+
+<h2>Practice Setup</h2>
+
+<button id="closePracticeModal">✕</button>
+
+</div>
+
+<!-- Exercise Type -->
+
+<div class="setting-group">
+
+<label>Exercise Type</label>
+
+<select id="exerciseType">
+
+<option value="meaning">Meaning</option>
+<option value="recall">Recall</option>
+<option value="fill">Fill Sentence</option>
+<option value="choose">Choose Word</option>
+<option value="production">Production</option>
+<option value="mixed">Mixed Practice</option>
+
+</select>
+
+</div>
+
+<!-- Questions -->
+
+<div class="setting-group">
+
+<label>Number of Questions</label>
+
+<div class="question-count">
+
+<button class="countPreset" data-value="5">5</button>
+
+<button class="countPreset" data-value="10">10</button>
+
+<button class="countPreset active" data-value="20">20</button>
+
+<button class="countPreset" data-value="50">50</button>
+
+</div>
+
+<input
+id="customQuestionCount"
+type="number"
+min="1"
+max="500"
+placeholder="Custom amount">
+
+</div>
+
+<!-- Vocabulary -->
+
+<div class="setting-group">
+
+<label>Vocabulary Selection</label>
+
+<select id="vocabularyFilter">
+
+<option value="all">All Words</option>
+<option value="pack">Imported Word Pack</option>
+<option value="new">New</option>
+<option value="weak">Weak</option>
+<option value="due">Due</option>
+
+</select>
+
+</div>
+
+<!-- Pack -->
+
+<div class="setting-group">
+
+<label>Word Pack</label>
+
+<select id="packSelector">
+
+<option value="all">All Packs</option>
+
+</select>
+
+</div>
+
+<button id="startPracticeBtn" class="primary block">
+
+Start Practice
+
+</button>
+
+</div>
+
+</div>
+
+</main>
+
+<!-- ======================================================
+SCRIPTS
+====================================================== -->
+
+<script src="js/db.js"></script>
+<script src="js/migration.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/similarity.js"></script>
+<script src="js/mastery.js"></script>
+<script src="js/filters.js"></script>
+<script src="js/scheduler.js"></script>
+<script src="js/packs.js"></script>
+<script src="js/import.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/practice.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

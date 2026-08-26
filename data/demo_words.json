@@ -1,0 +1,272 @@
+{
+  "version": "1.0",
+  "name": "Demo Dutch Vocabulary",
+  "words": [
+    {
+      "dutch": "boos",
+      "english": "angry",
+      "category": "Emotions",
+      "difficulty": "B1",
+      "examples": [
+        {
+          "level": "B1",
+          "nl": "Ik was boos omdat hij te laat kwam.",
+          "en": "I was angry because he arrived late."
+        },
+        {
+          "level": "B1/B2",
+          "nl": "Ze werd boos toen ze hoorde wat er was gebeurd.",
+          "en": "She became angry when she heard what had happened."
+        },
+        {
+          "level": "B2",
+          "nl": "Hoewel hij boos was, probeerde hij rustig te blijven.",
+          "en": "Although he was angry, he tried to remain calm."
+        },
+        {
+          "level": "B2/C1",
+          "nl": "Zijn reactie maakte duidelijk dat hij behoorlijk boos was.",
+          "en": "His reaction made it clear that he was quite angry."
+        },
+        {
+          "level": "C1",
+          "nl": "Ze was zichtbaar boos over de manier waarop de beslissing was genomen.",
+          "en": "She was visibly angry about the way the decision had been made."
+        }
+      ]
+    },
+
+    {
+      "dutch": "bezorgd",
+      "english": "worried",
+      "category": "Emotions",
+      "difficulty": "B1/B2",
+      "examples": [
+        {
+          "level": "B1",
+          "nl": "Mijn ouders waren bezorgd toen ik niet thuiskwam.",
+          "en": "My parents were worried when I did not come home."
+        },
+        {
+          "level": "B1/B2",
+          "nl": "Ze maakte zich zorgen omdat haar zoon ziek was.",
+          "en": "She was worried because her son was ill."
+        },
+        {
+          "level": "B2",
+          "nl": "De bewoners waren bezorgd over de verkeersveiligheid.",
+          "en": "The residents were concerned about road safety."
+        },
+        {
+          "level": "B2/C1",
+          "nl": "De gemeente is bezorgd over de gevolgen van de klimaatverandering.",
+          "en": "The municipality is concerned about the consequences of climate change."
+        },
+        {
+          "level": "C1",
+          "nl": "Experts uitten hun bezorgdheid over de structurele problemen binnen de sector.",
+          "en": "Experts expressed their concern about the structural problems within the sector."
+        }
+      ]
+    },
+
+    {
+      "dutch": "teleurgesteld",
+      "english": "disappointed",
+      "category": "Emotions",
+      "difficulty": "B2",
+      "examples": [
+        {
+          "level": "B1",
+          "nl": "Ik was teleurgesteld door het resultaat.",
+          "en": "I was disappointed by the result."
+        },
+        {
+          "level": "B1/B2",
+          "nl": "Ze was teleurgesteld omdat de afspraak niet doorging.",
+          "en": "She was disappointed because the appointment was cancelled."
+        },
+        {
+          "level": "B2",
+          "nl": "Ondanks zijn hoge verwachtingen was hij teleurgesteld door het eindresultaat.",
+          "en": "Despite his high expectations, he was disappointed by the final result."
+        },
+        {
+          "level": "B2/C1",
+          "nl": "De supporters waren zichtbaar teleurgesteld na de onverwachte nederlaag.",
+          "en": "The supporters were visibly disappointed after the unexpected defeat."
+        },
+        {
+          "level": "C1",
+          "nl": "Hoewel de beslissing begrijpelijk was, bleef hij teleurgesteld over het gebrek aan overleg.",
+          "en": "Although the decision was understandable, he remained disappointed by the lack of consultation."
+        }
+      ]
+    },
+
+    {
+      "dutch": "opgelucht",
+      "english": "relieved",
+      "category": "Emotions",
+      "difficulty": "B2",
+      "examples": [
+        {
+          "level": "B1",
+          "nl": "Ik was opgelucht toen ik hoorde dat alles goed was.",
+          "en": "I was relieved when I heard that everything was fine."
+        },
+        {
+          "level": "B1/B2",
+          "nl": "Na het examen voelde ze zich opgelucht.",
+          "en": "After the exam she felt relieved."
+        },
+        {
+          "level": "B2",
+          "nl": "Hij was opgelucht dat het probleem uiteindelijk was opgelost.",
+          "en": "He was relieved that the problem was eventually solved."
+        },
+        {
+          "level": "B2/C1",
+          "nl": "De bewoners waren opgelucht nadat duidelijk werd dat er geen gevaar meer was.",
+          "en": "The residents were relieved after it became clear that there was no longer any danger."
+        },
+        {
+          "level": "C1",
+          "nl": "Na maanden van onzekerheid was iedereen zichtbaar opgelucht toen het besluit eindelijk werd genomen.",
+          "en": "After months of uncertainty, everyone was visibly relieved when the decision was finally made."
+        }
+      ]
+    },
+
+    {
+      "dutch": "geïrriteerd",
+      "english": "irritated",
+      "category": "Emotions",
+      "difficulty": "B2/C1",
+      "examples": [
+        {
+          "level": "B1",
+          "nl": "Hij was geïrriteerd door het lawaai.",
+          "en": "He was irritated by the noise."
+        },
+        {
+          "level": "B1/B2",
+          "nl": "Na een uur wachten werd ze geïrriteerd.",
+          "en": "After waiting for an hour, she became irritated."
+        },
+        {
+          "level": "B2",
+          "nl": "De klant raakte geïrriteerd omdat niemand hem kon helpen.",
+          "en": "The customer became irritated because nobody could help him."
+        },
+        {
+          "level": "B2/C1",
+          "nl": "Zijn geïrriteerde reactie maakte het gesprek alleen maar moeilijker.",
+          "en": "His irritated reaction only made the conversation more difficult."
+        },
+        {
+          "level": "C1",
+          "nl": "Hoewel hij aanvankelijk geduldig bleef, raakte hij uiteindelijk zichtbaar geïrriteerd door het gebrek aan duidelijkheid.",
+          "en": "Although he initially remained patient, he eventually became visibly irritated by the lack of clarity."
+        }
+      ]
+    },
+
+    {
+      "dutch": "aankaarten",
+      "english": "to raise / bring up",
+      "category": "Work",
+      "difficulty": "B2",
+      "examples": [
+        {
+          "level": "B1",
+          "nl": "Ik wil dit probleem morgen aankaarten.",
+          "en": "I want to bring up this problem tomorrow."
+        },
+        {
+          "level": "B1/B2",
+          "nl": "Tijdens de vergadering heeft zij het onderwerp opnieuw aangekaart.",
+          "en": "During the meeting she raised the subject again."
+        },
+        {
+          "level": "B2",
+          "nl": "De manager besloot het probleem tijdens het overleg aan te kaarten.",
+          "en": "The manager decided to raise the problem during the meeting."
+        },
+        {
+          "level": "B2/C1",
+          "nl": "Het is belangrijk om mogelijke problemen vroegtijdig bij de opdrachtgever aan te kaarten.",
+          "en": "It is important to raise potential problems with the client at an early stage."
+        },
+        {
+          "level": "C1",
+          "nl": "Tijdens het overleg werden verschillende structurele knelpunten aangekaart die eerder onvoldoende aandacht hadden gekregen.",
+          "en": "During the meeting, several structural bottlenecks were raised that had previously received insufficient attention."
+        }
+      ]
+    },
+
+    {
+      "dutch": "veronderstellen",
+      "english": "to assume",
+      "category": "Work",
+      "difficulty": "B2/C1",
+      "examples": [
+        {
+          "level": "B1/B2",
+          "nl": "We kunnen niet veronderstellen dat iedereen het weet.",
+          "en": "We cannot assume that everyone knows."
+        },
+        {
+          "level": "B2",
+          "nl": "Je mag niet zomaar veronderstellen dat de informatie correct is.",
+          "en": "You cannot simply assume that the information is correct."
+        },
+        {
+          "level": "B2/C1",
+          "nl": "Bij het maken van de planning veronderstelden we dat alle gegevens beschikbaar waren.",
+          "en": "When making the plan, we assumed that all the data was available."
+        },
+        {
+          "level": "C1",
+          "nl": "De analyse lijkt te veronderstellen dat de economische omstandigheden de komende jaren stabiel blijven.",
+          "en": "The analysis appears to assume that economic conditions will remain stable in the coming years."
+        }
+      ]
+    },
+
+    {
+      "dutch": "uitvoeren",
+      "english": "to carry out / perform",
+      "category": "Work",
+      "difficulty": "B1/B2",
+      "examples": [
+        {
+          "level": "B1",
+          "nl": "We moeten het plan uitvoeren.",
+          "en": "We have to carry out the plan."
+        },
+        {
+          "level": "B1/B2",
+          "nl": "Het bedrijf voert de werkzaamheden volgende week uit.",
+          "en": "The company will carry out the work next week."
+        },
+        {
+          "level": "B2",
+          "nl": "De aannemer moet de werkzaamheden volgens het ontwerp uitvoeren.",
+          "en": "The contractor must carry out the work according to the design."
+        },
+        {
+          "level": "B2/C1",
+          "nl": "Voordat de werkzaamheden worden uitgevoerd, moet het voorstel worden goedgekeurd.",
+          "en": "Before the work is carried out, the proposal must be approved."
+        },
+        {
+          "level": "C1",
+          "nl": "De voorgestelde maatregelen kunnen alleen effectief worden uitgevoerd als alle betrokken partijen samenwerken.",
+          "en": "The proposed measures can only be implemented effectively if all parties involved cooperate."
+        }
+      ]
+    }
+  ]
+}
