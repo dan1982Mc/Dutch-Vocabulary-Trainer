@@ -75,8 +75,6 @@ DASHBOARD
 
 </div>
 
-<!-- Selected Vocabulary -->
-
 <div class="card">
 
 <h3>Selected Vocabulary</h3>
@@ -121,8 +119,6 @@ DASHBOARD
 
 </div>
 
-<!-- Skills -->
-
 <div class="card">
 
 <h3>Skills</h3>
@@ -130,8 +126,6 @@ DASHBOARD
 <div id="skillsContainer"></div>
 
 </div>
-
-<!-- All Vocabulary -->
 
 <div class="card">
 
@@ -283,8 +277,6 @@ PRACTICE SETUP MODAL
 
 </div>
 
-<!-- Exercise Type -->
-
 <div class="setting-group">
 
 <label>Exercise Type</label>
@@ -301,8 +293,6 @@ PRACTICE SETUP MODAL
 </select>
 
 </div>
-
-<!-- Questions -->
 
 <div class="setting-group">
 
@@ -329,8 +319,6 @@ placeholder="Custom amount">
 
 </div>
 
-<!-- Vocabulary -->
-
 <div class="setting-group">
 
 <label>Vocabulary Selection</label>
@@ -346,8 +334,6 @@ placeholder="Custom amount">
 </select>
 
 </div>
-
-<!-- Pack -->
 
 <div class="setting-group">
 
@@ -375,6 +361,10 @@ Start Practice
 
 <!-- ======================================================
 SCRIPTS
+V2 dependency order:
+DB → migration → storage → similarity → mastery → filters
+→ scheduler → packs → exercises → selection → import
+→ dashboard → practice → UI → app
 ====================================================== -->
 
 <script src="js/db.js"></script>
@@ -385,6 +375,8 @@ SCRIPTS
 <script src="js/filters.js"></script>
 <script src="js/scheduler.js"></script>
 <script src="js/packs.js"></script>
+<script src="js/exercises.js"></script>
+<script src="js/selection.js"></script>
 <script src="js/import.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/practice.js"></script>
