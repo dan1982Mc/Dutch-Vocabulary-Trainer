@@ -66,12 +66,14 @@
 </div></div>
 </main>
 
+<!-- Architecture-A dependency order:
+     db → migration → storage → similarity → mastery → scheduler
+     → packs → exercises → selection → import → dashboard → practice → ui → app -->
 <script src="js/db.js"></script>
 <script src="js/migration.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/similarity.js"></script>
 <script src="js/mastery.js"></script>
-<script src="js/filters.js"></script>
 <script src="js/scheduler.js"></script>
 <script src="js/packs.js"></script>
 <script src="js/exercises.js"></script>
@@ -81,31 +83,10 @@
 <script src="js/practice.js"></script>
 <script src="js/ui.js"></script>
 
-<!-- Architecture-A API bridges. These keep app.js aligned with the
-     canonical module names without reintroducing a second data model. -->
+<!-- Small compatibility bridge for the canonical migration API. -->
 <script>
-/* migration.js canonical entry point */
 if (typeof runMigration !== "function" && typeof runMigrations === "function") {
     window.runMigration = runMigrations;
-}
-
-/* selection.js canonical source-based API */
-if (typeof changeVocabularySelection !== "function") {
-    window.changeVocabularySelection = function (source, packId = null) {
-        switch (String(source || "all").toLowerCase()) {
-            case "pack":
-                return selectVocabularyPack(packId);
-            case "new":
-                return selectNewVocabulary();
-            case "weak":
-                return selectWeakVocabulary();
-            case "due":
-                return selectDueVocabulary();
-            case "all":
-            default:
-                return selectAllVocabulary();
-        }
-    };
 }
 </script>
 
