@@ -74,6 +74,7 @@
 <script src="js/storage.js"></script>
 <script src="js/similarity.js"></script>
 <script src="js/mastery.js"></script>
+<script src="js/practice-mastery-bridge.js"></script>
 <script src="js/scheduler.js"></script>
 <script src="js/packs.js"></script>
 <script src="js/exercises.js"></script>
@@ -83,7 +84,7 @@
 <script src="js/practice.js"></script>
 <script src="js/ui.js"></script>
 
-<!-- Small compatibility bridge for the canonical migration API. -->
+<!-- Canonical migration API bridge. -->
 <script>
 if (typeof runMigration !== "function" && typeof runMigrations === "function") {
     window.runMigration = runMigrations;
