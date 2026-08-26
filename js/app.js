@@ -2,194 +2,35 @@
    DUTCH VOCABULARY TRAINER V2.0
    app.js - main application controller
 ========================================================= */
-
 const APP_VERSION = "2.0.0";
 const APP_NAME = "Dutch Vocabulary Trainer";
+const AppState = { version: APP_VERSION, initialized: false, initializing: false, currentView: "home", previousView: null, practiceSession: null, vocabularySelection: null, statistics: null, initializationPromise: null, lastError: null };
+const APP_EVENTS = { READY: "app-ready", VIEW_CHANGED: "app-view-changed", DATA_CHANGED: "app-data-changed", SELECTION_CHANGED: "app-selection-changed", PRACTICE_STARTED: "app-practice-started", PRACTICE_ANSWERED: "app-practice-answered", PRACTICE_COMPLETED: "app-practice-completed", IMPORT_COMPLETED: "app-import-completed", ERROR: "app-error" };
+function dispatchAppEvent(eventName, detail = {}) { try { window.dispatchEvent(new CustomEvent(eventName, { detail: { ...detail, appVersion: APP_VERSION, timestamp: new Date().toISOString() } })); } catch (_) {} }
+function handleAppError(error, context = "Application") { AppState.lastError = { context, message: error?.message || String(error), timestamp: new Date().toISOString() }; console.error(`${context}:`, error); dispatchAppEvent(APP_EVENTS.ERROR, { error: AppState.lastError }); return error; }
 
-const AppState = {
-    version: APP_VERSION,
-    initialized: false,
-    initializing: false,
-    currentView: "home",
-    previousView: null,
-    practiceSession: null,
-    vocabularySelection: null,
-    statistics: null,
-    initializationPromise: null,
-    lastError: null
-};
-
-const APP_EVENTS = {
-    READY: "app-ready", VIEW_CHANGED: "app-view-changed", DATA_CHANGED: "app-data-changed",
-    SELECTION_CHANGED: "app-selection-changed", PRACTICE_STARTED: "app-practice-started",
-    PRACTICE_ANSWERED: "app-practice-answered", PRACTICE_COMPLETED: "app-practice-completed",
-    IMPORT_COMPLETED: "app-import-completed", ERROR: "app-error"
-};
-
-function dispatchAppEvent(eventName, detail = {}) {
-    try { window.dispatchEvent(new CustomEvent(eventName, { detail: { ...detail, appVersion: APP_VERSION, timestamp: new Date().toISOString() } })); } catch (_) {}
-}
-function handleAppError(error, context = "") {
-    AppState.lastError = error; console.error(`[${APP_NAME}]`, context, error); dispatchAppEvent(APP_EVENTS.ERROR, { error, context });
-    if (typeof showToast === "function") showToast(context ? `${context}: ${error.message || error}` : (error.message || String(error)), "error");
-    return error;
-}
-
-async function initializeDatabaseLayer() {
-    if (typeof initializeDB === "function") return initializeDB();
-    if (typeof initDatabase === "function") return initDatabase();
-    throw new Error("db.js: no database initialization API is available.");
-}
-async function initializeStorageLayer() {
-    /* storage.js is a synchronous localStorage/settings layer; there is no
-       initialization function and therefore nothing to await here. */
-    if (typeof getUISettings === "function") return getUISettings();
-    return true;
-}
-async function initializeMigrationLayer() {
-    if (typeof runMigrations !== "function") throw new Error("migration.js: runMigrations() is unavailable.");
-    return runMigrations();
-}
-async function initializePackLayer() {
-    if (typeof ensureDefaultPack === "function") return ensureDefaultPack();
-    if (typeof ensureLegacyPack === "function") return ensureLegacyPack();
-    return true;
-}
-function initializeSelectionLayer() {
-    if (typeof getVocabularySelection !== "function") throw new Error("selection.js: getVocabularySelection() is unavailable.");
-    AppState.vocabularySelection = getVocabularySelection();
-    return AppState.vocabularySelection;
-}
-async function initializeMasteryLayer() {
-    if (typeof recalculateAllMasteryStates === "function") return recalculateAllMasteryStates();
-    return { processed: 0 };
-}
-async function initializeSchedulerLayer() {
-    if (typeof initializeScheduler === "function") return initializeScheduler();
-    if (window.DutchTrainerScheduler?.initialize) return window.DutchTrainerScheduler.initialize();
-    return true;
-}
-async function initializeImportLayer() {
-    if (typeof initializeImport === "function") return initializeImport();
-    return true;
-}
-async function initializeDashboardLayer() {
-    if (typeof initializeDashboard === "function") return initializeDashboard();
-    return true;
-}
-async function initializePracticeLayer() {
-    if (typeof initializePractice === "function") return initializePractice();
-    return true;
-}
-
-async function getApplicationVocabulary() {
-    if (typeof getAllWords !== "function") throw new Error("db.js: getAllWords() is unavailable.");
-    const words = await getAllWords(); return Array.isArray(words) ? words : [];
-}
-async function getApplicationSelectedVocabulary() {
-    if (typeof getSelectedVocabulary !== "function") throw new Error("selection.js: getSelectedVocabulary() is unavailable.");
-    const words = await getSelectedVocabulary(); return Array.isArray(words) ? words : [];
-}
+async function initializeDatabaseLayer() { if (typeof initializeDB === "function") return initializeDB(); if (typeof initDatabase === "function") return initDatabase(); throw new Error("db.js: no database initialization API is available."); }
+async function initializeStorageLayer() { return typeof initializeStorage === "function" ? initializeStorage() : true; }
+async function initializeMigrationLayer() { return typeof runMigrations === "function" ? runMigrations() : true; }
+async function initializePackLayer() { const packs = window.DutchTrainerPacks; if (!packs?.ensureDefaultPack) throw new Error("packs.js: DutchTrainerPacks.ensureDefaultPack() is unavailable."); return packs.ensureDefaultPack(); }
+function initializeSelectionLayer() { if (typeof getVocabularySelection !== "function") throw new Error("selection.js: getVocabularySelection() is unavailable."); AppState.vocabularySelection = getVocabularySelection(); return AppState.vocabularySelection; }
+async function initializeMasteryLayer() { return typeof recalculateAllMasteryStates === "function" ? recalculateAllMasteryStates() : { processed: 0 }; }
+async function initializeSchedulerLayer() { return typeof initializeScheduler === "function'" ? initializeScheduler() : (window.DutchTrainerScheduler?.initialize ? window.DutchTrainerScheduler.initialize() : true); }
+async function initializeImportLayer() { return typeof initializeImport === "function" ? initializeImport() : true; }
+async function initializeDashboardLayer() { return typeof initializeDashboard === "function" ? initializeDashboard() : true; }
+async function initializePracticeLayer() { return typeof initializePractice === "function" ? initializePractice() : true; }
+async function getApplicationVocabulary() { if (typeof getAllWords !== "function") throw new Error("db.js: getAllWords() is unavailable."); const words = await getAllWords(); return Array.isArray(words) ? words : []; }
+async function getApplicationSelectedVocabulary() { if (typeof getSelectedVocabulary !== "function") throw new Error("selection.js: getSelectedVocabulary() is unavailable."); const words = await getSelectedVocabulary(); return Array.isArray(words) ? words : []; }
 function getApplicationSelection() { return typeof getVocabularySelection === "function" ? (AppState.vocabularySelection = getVocabularySelection()) : AppState.vocabularySelection; }
 function isApplicationSelectionAll() { const selection = getApplicationSelection(); return !selection || String(selection.source || "all").toLowerCase() === "all"; }
 function normalizeQuestionCount(value) { const n = Number(value); return Number.isFinite(n) ? Math.max(1, Math.min(500, Math.floor(n))) : 10; }
-
-async function changeApplicationSelection(source, packId = null) {
-    const normalized = String(source || "all").trim().toLowerCase();
-    const calls = {
-        all: () => selectAllVocabulary(), pack: () => selectVocabularyPack(packId),
-        new: () => selectNewVocabulary(), weak: () => selectWeakVocabulary(), due: () => selectDueVocabulary()
-    };
-    if (typeof calls[normalized] !== "function") return getApplicationSelection();
-    await calls[normalized]();
-    AppState.vocabularySelection = getVocabularySelection();
-    dispatchAppEvent(APP_EVENTS.SELECTION_CHANGED, { selection: AppState.vocabularySelection });
-    await refreshApplicationStatistics();
-    return AppState.vocabularySelection;
-}
-async function refreshApplicationStatistics() {
-    try {
-        const allWords = await getApplicationVocabulary(), selectedWords = await getApplicationSelectedVocabulary();
-        const stats = typeof calculateVocabularyStats === "function" ? calculateVocabularyStats : null;
-        AppState.statistics = {
-            selected: stats ? stats(selectedWords) : null, all: stats ? stats(allWords) : null,
-            skills: typeof calculateSkillStats === "function" ? calculateSkillStats(selectedWords) : null,
-            updatedAt: new Date().toISOString()
-        };
-        return AppState.statistics;
-    } catch (error) { handleAppError(error, "Refreshing application statistics"); return AppState.statistics; }
-}
-
-async function startQuickPractice(options = {}) {
-    const selected = await getApplicationSelectedVocabulary();
-    const allWords = selected.length && !isApplicationSelectionAll() ? selected : await getApplicationVocabulary();
-    const questionCount = normalizeQuestionCount(options.questionCount ?? 10);
-    const quickWords = typeof selectStartPracticeWords === "function" ? selectStartPracticeWords(allWords, questionCount) : allWords.slice(0, questionCount);
-    const session = await startPracticeSession({ ...options, mode: "start", exerciseType: "meaning", questionCount, vocabulary: quickWords });
-    AppState.practiceSession = session;
-    if (session?.success) navigateTo("practice");
-    dispatchAppEvent(APP_EVENTS.PRACTICE_STARTED, { mode: "start", exerciseType: "meaning", questionCount, vocabularyCount: quickWords.length });
-    return session;
-}
-
-async function startConfiguredPractice() {
-    const type = document.getElementById("exerciseType")?.value || "meaning";
-    const custom = document.getElementById("customQuestionCount")?.value;
-    const activePreset = document.querySelector(".countPreset.active")?.dataset.value;
-    const count = normalizeQuestionCount(custom || activePreset || 20);
-    const filter = document.getElementById("vocabularyFilter")?.value || "all";
-    const packId = document.getElementById("packSelector")?.value || "all";
-    await changeApplicationSelection(filter, filter === "pack" ? packId : null);
-    closeModal("practiceModal");
-    const session = await startPracticeSession({ exerciseType: type, questionCount: count, mode: "full" });
-    AppState.practiceSession = session;
-    if (session?.success) navigateTo("practice");
-    return session;
-}
-
-async function checkCurrentAnswer() {
-    const area = document.getElementById("answerArea");
-    const input = area?.querySelector("input, textarea, select");
-    const answer = input ? (input.value ?? "") : "";
-    return startPracticeAnswer(answer);
-}
-async function startPracticeAnswer(answer) {
-    const result = await checkPracticeAnswer(answer);
-    if (result?.success) renderCurrentPracticeFeedback(result);
-    return result;
-}
-function renderCurrentPracticeFeedback(result) {
-    const feedback = document.getElementById("feedbackArea");
-    if (feedback && result.feedback) feedback.textContent = result.feedback.correct ? "Correct!" : `Correct answer: ${result.feedback.correctAnswer || ""}`;
-    const check = document.getElementById("checkBtn"), next = document.getElementById("nextBtn");
-    if (check) check.classList.add("hidden"); if (next) next.classList.remove("hidden");
-}
+async function changeApplicationSelection(source, packId = null) { const normalized = String(source || "all").trim().toLowerCase(); const calls = { all: () => selectAllVocabulary(), pack: () => selectVocabularyPack(packId), new: () => selectNewVocabulary(), weak: () => selectWeakVocabulary(), due: () => selectDueVocabulary() }; if (typeof calls[normalized] !== "function") return getApplicationSelection(); await calls[normalized](); AppState.vocabularySelection = getVocabularySelection(); dispatchAppEvent(APP_EVENTS.SELECTION_CHANGED, { selection: AppState.vocabularySelection }); await refreshApplicationStatistics(); return AppState.vocabularySelection; }
+async function refreshApplicationStatistics() { try { const allWords = await getApplicationVocabulary(), selectedWords = await getApplicationSelectedVocabulary(); const stats = typeof calculateVocabularyStats === "function" ? calculateVocabularyStats : null; AppState.statistics = { selected: stats ? stats(selectedWords) : null, all: stats ? stats(allWords) : null, skills: typeof calculateSkillStats === "function" ? calculateSkillStats(selectedWords) : null, updatedAt: new Date().toISOString() }; return AppState.statistics; } catch (error) { handleAppError(error, "Refreshing application statistics"); return AppState.statistics; } }
+async function startQuickPractice(options = {}) { const selected = await getApplicationSelectedVocabulary(); const allWords = selected.length && !isApplicationSelectionAll() ? selected : await getApplicationVocabulary(); const questionCount = normalizeQuestionCount(options.questionCount ?? 10); const quickWords = typeof selectStartPracticeWords === "function" ? selectStartPracticeWords(allWords, questionCount) : allWords.slice(0, questionCount); const session = await startPracticeSession({ ...options, mode: "start", exerciseType: "meaning", questionCount, vocabulary: quickWords }); AppState.practiceSession = session; if (session?.success) navigateTo("practice"); dispatchAppEvent(APP_EVENTS.PRACTICE_STARTED, { mode: "start", exerciseType: "meaning", questionCount, vocabularyCount: quickWords.length }); return session; }
+async function startConfiguredPractice() { const type = document.getElementById("exerciseType")?.value || "meaning"; const custom = document.getElementById("customQuestionCount")?.value; const activePreset = document.querySelector(".countPreset.active")?.dataset.value; const count = normalizeQuestionCount(custom || activePreset || 20); const filter = document.getElementById("vocabularyFilter")?.value || "all"; const packId = document.getElementById("packSelector")?.value || "all"; await changeApplicationSelection(filter, filter === "pack" ? packId : null); closeModal("practiceModal"); const session = await startPracticeSession({ exerciseType: type, questionCount: count, mode: "full" }); AppState.practiceSession = session; if (session?.success) navigateTo("practice"); return session; }
+async function checkCurrentAnswer() { const area = document.getElementById("answerArea"); const input = area?.querySelector("input, textarea, select"); return startPracticeAnswer(input ? input.value ?? "" : ""); }
+async function startPracticeAnswer(answer) { const result = await checkPracticeAnswer(answer); if (result?.success && typeof renderCurrentPracticeFeedback === "function") renderCurrentPracticeFeedback(result); return result; }
 async function goToNextPracticeQuestion() { const result = nextPracticeQuestion(); if (result?.completed) { navigateTo("complete"); return result; } if (typeof renderPracticeQuestion === "function") await renderPracticeQuestion(result.question); return result; }
-
-async function initializeApplication() {
-    if (AppState.initialized) return AppState;
-    if (AppState.initializationPromise) return AppState.initializationPromise;
-    AppState.initializationPromise = (async () => {
-        AppState.initializing = true;
-        try {
-            await initializeDatabaseLayer(); await initializeStorageLayer(); await initializeMigrationLayer(); await initializePackLayer();
-            initializeSelectionLayer(); await initializeMasteryLayer(); await initializeSchedulerLayer(); await initializeImportLayer();
-            await initializeDashboardLayer(); await initializePracticeLayer();
-            await refreshApplicationStatistics();
-            if (typeof initializeUI === "function") initializeUI();
-            AppState.initialized = true; dispatchAppEvent(APP_EVENTS.READY, { state: AppState });
-            return AppState;
-        } catch (error) { handleAppError(error, "Application initialization"); throw error; }
-        finally { AppState.initializing = false; }
-    })();
-    try { return await AppState.initializationPromise; } finally { AppState.initializationPromise = null; }
-}
-
-window.DutchTrainerApp = {
-    version: APP_VERSION, state: AppState, events: APP_EVENTS, initialize: initializeApplication,
-    init: initializeApplication, navigateTo: navigateTo, startQuickPractice, startConfiguredPractice,
-    checkCurrentAnswer, goToNextPracticeQuestion, getVocabulary: getApplicationVocabulary,
-    getSelectedVocabulary: getApplicationSelectedVocabulary, getSelection: getApplicationSelection,
-    changeSelection: changeApplicationSelection, refreshStatistics: refreshApplicationStatistics
-};
+async function initializeApplication() { if (AppState.initialized) return AppState; if (AppState.initializationPromise) return AppState.initializationPromise; AppState.initializationPromise = (async () => { AppState.initializing = true; try { await initializeDatabaseLayer(); await initializeStorageLayer(); await initializeMigrationLayer(); await initializePackLayer(); initializeSelectionLayer(); await initializeMasteryLayer(); await initializeSchedulerLayer(); await initializeImportLayer(); await initializeDashboardLayer(); await initializePracticeLayer(); await refreshApplicationStatistics(); if (typeof initializeUI === "function") initializeUI(); AppState.initialized = true; dispatchAppEvent(APP_EVENTS.READY, { state: AppState }); return AppState; } catch (error) { handleAppError(error, "Application initialization"); throw error; } finally { AppState.initializing = false; } })(); try { return await AppState.initializationPromise; } finally { AppState.initializationPromise = null; } }
+window.DutchTrainerApp = { version: APP_VERSION, state: AppState, events: APP_EVENTS, initialize: initializeApplication, init: initializeApplication, navigateTo: navigateTo, startQuickPractice, startConfiguredPractice, checkCurrentAnswer, goToNextPracticeQuestion, getVocabulary: getApplicationVocabulary, getSelectedVocabulary: getApplicationSelectedVocabulary, getSelection: getApplicationSelection, changeSelection: changeApplicationSelection, refreshStatistics: refreshApplicationStatistics };
 window.addEventListener("DOMContentLoaded", () => initializeApplication().catch(() => {}));
