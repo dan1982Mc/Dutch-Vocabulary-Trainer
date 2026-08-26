@@ -16,12 +16,20 @@ const base=dutch(w),stem=base.replace(/(?:en|e|s)$/i,'');if(stem.length>=5){cons
 return sentence}
 function unique(a){const seen=new Set(),out=[];for(const value of a){const s=clean(value),key=s.toLocaleLowerCase('nl-NL');if(s&&!seen.has(key)){seen.add(key);out.push(s)}}return out}
 function shuffle(a){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]]}return r}
-function mergeVocabulary(v){const selected=Array.isArray(v)?v:[],full=Array.isArray(window.DutchTrainerV2VocabularyPool)?window.DutchTrainerV2VocabularyPool:[];return uniqueObjects([...selected,...full])}
 function uniqueObjects(a){const seen=new Set(),out=[];for(const x of a){const id=clean(x?.id??x?.wordId??x?.dutch??x?.word??x?.term),key=id||JSON.stringify(x);if(!seen.has(key)){seen.add(key);out.push(x)}}return out}
+function mergeVocabulary(v){const selected=Array.isArray(v)?v:[],full=Array.isArray(window.DutchTrainerV2VocabularyPool)?window.DutchTrainerV2VocabularyPool:[];return uniqueObjects([...selected,...full])}
 function otherWords(v,w){const id=clean(w?.id??w?.wordId),pool=mergeVocabulary(v);return pool.filter(x=>clean(x?.id??x?.wordId)!==id&&(dutch(x)||english(x)))}
-function options(values,correct){const vals=unique([correct,...values]);return shuffle(vals).slice(0,4).map((text,i)=>({id:'option-'+i,text,value:text,correct:text.toLocaleLowerCase('nl-NL')===clean(correct).toLocaleLowerCase('nl-NL')}))}
-function meaningOptions(w,v){const supplied=Array.isArray(w?.meaningOptions)?w.meaningOptions:[],others=otherWords(v,w).map(english);return options([...supplied,...shuffle(others)],english(w))}
-function chooseOptions(w,v){const supplied=Array.isArray(w?.wordOptions)?w.wordOptions:[],others=otherWords(v,w).flatMap(x=>[dutch(x),...forms(x)]);return options([...supplied,...shuffle(others)],dutch(w))}
+/* Reserve the correct answer first. The previous implementation shuffled the
+   correct answer together with all distractors and sliced four, so with more
+   than three distractors it could randomly remove the correct answer. */
+function options(values,correct){
+const correctText=clean(correct),key=correctText.toLocaleLowerCase('nl-NL');
+const distractors=unique(values).filter(v=>v.toLocaleLowerCase('nl-NL')!==key);
+const selected=shuffle(distractors).slice(0,3);
+return shuffle([correctText,...selected]).map((text,i)=>({id:'option-'+i,text,value:text,correct:text.toLocaleLowerCase('nl-NL')===key}));
+}
+function meaningOptions(w,v){const supplied=Array.isArray(w?.meaningOptions)?w.meaningOptions:[],others=otherWords(v,w).map(english);return options([...supplied,...others],english(w))}
+function chooseOptions(w,v){const supplied=Array.isArray(w?.wordOptions)?w.wordOptions:[],others=otherWords(v,w).flatMap(x=>[dutch(x),...forms(x)]);return options([...supplied,...others],dutch(w))}
 function createExercise(word,type='meaning',vocabulary=[]){const t=normalizeExerciseType(type),example=examples(word)[0]||'',answers=acceptedAnswers(word),base={type:t,wordId:clean(word?.id),dutchWord:dutch(word),meaning:english(word),acceptedAnswers:answers};
 if(t==='meaning')return {...base,prompt:'What does this Dutch word mean?',context:dutch(word),inputType:'choice',options:meaningOptions(word,vocabulary),correctAnswer:english(word)};
 if(t==='choose'){const sentence=example?maskTarget(example,word):`Complete the sentence with the word "${dutch(word)}".`;return {...base,prompt:'Choose the Dutch word that completes the sentence.',context:sentence,example,sentence,inputType:'choice',options:chooseOptions(word,vocabulary),correctAnswer:dutch(word)};}
