@@ -101,13 +101,13 @@ const initDashboard = initializeDashboard;
 /* =========================================================
    ARCHITECTURE-A APPLICATION CONTRACT
 
-   These functions are intentionally thin. They expose the
-   canonical dashboard/practice contract expected by app.js.
-   Practice logic remains entirely in practice.js.
+   app.js owns orchestration. dashboard.js only exposes the
+   thin cross-module contract needed by the classic-script
+   application. practice.js remains the session owner.
 ========================================================= */
 
 window.refreshDashboard = async function () {
-    return typeof renderDashboard === "function" ? await renderDashboard() : null;
+    return await renderDashboard();
 };
 
 window.initializePractice = function () {
@@ -119,10 +119,13 @@ window.showPracticeSetup = function () {
     if (typeof openModal === "function") openModal("practiceModal");
 };
 
+/* Canonical bridge: practice.js exposes startPractice(). */
 window.startPracticeSession = async function (options = {}) {
-    if (!window.DutchTrainerPractice || typeof window.DutchTrainerPractice.start !== "function") throw new Error("Practice module is not available.");
-    const session = await window.DutchTrainerPractice.start(options);
-    if (typeof setPracticeSession === "function") setPracticeSession(session);
-    return session;
+    if (typeof startPractice !== "function") {
+        throw new Error("Practice module is not available.");
+    }
+
+    return await startPractice(options);
 };
+
 window.beginPractice = window.startPracticeSession;
