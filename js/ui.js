@@ -1,63 +1,13 @@
 /* Architecture A UI */
-(function () {
-  function qs(id) { return document.getElementById(id); }
-  function show(id) { document.querySelectorAll('.screen').forEach(function (e) { e.classList.remove('active'); }); var e = qs(id); if (e) e.classList.add('active'); }
-  function hide(id) { var e = qs(id); if (e) e.classList.add('hidden'); }
-  function unhide(id) { var e = qs(id); if (e) e.classList.remove('hidden'); }
-  function navigateTo(name) {
-    var map = { home: 'homeScreen', dashboard: 'dashboardScreen', practice: 'practiceScreen', complete: 'completeScreen' };
-    show(map[name] || name);
-    if (name === 'dashboard' && window.DutchTrainerDashboard) window.DutchTrainerDashboard.render().catch(console.error);
-  }
-  function openModal(id) { unhide(id); }
-  function closeModal(id) { hide(id); }
-  function selectedAnswer() {
-    var input = qs('answerInput');
-    if (input) return input.value;
-    var checked = document.querySelector('#answerArea input[type="radio"]:checked');
-    return checked ? checked.value : '';
-  }
-  function renderQuestion(q) {
-    if (!q) return;
-    qs('practiceTitle').textContent = 'Practice';
-    qs('exerciseBadge').textContent = q.type || 'Practice';
-    qs('questionPrompt').textContent = q.exercise?.prompt || q.exercise?.question || q.exercise?.instruction || q.word?.word || '';
-    qs('questionContext').textContent = q.exercise?.context || q.exercise?.sentence || q.exercise?.meaning || '';
-    var area = qs('answerArea'); area.innerHTML = '';
-    if (q.exercise?.options && Array.isArray(q.exercise.options)) {
-      q.exercise.options.forEach(function (option) { var label=document.createElement('label'); label.className='choice-option'; label.innerHTML='<input type="radio" name="practiceChoice"> <span></span>'; label.querySelector('input').value=option; label.querySelector('span').textContent=option; area.appendChild(label); });
-    } else { var input=document.createElement('input'); input.id='answerInput'; input.type='text'; input.autocomplete='off'; input.placeholder='Type your answer'; area.appendChild(input); input.focus(); }
-    qs('feedbackArea').textContent=''; qs('checkBtn').classList.remove('hidden'); qs('nextBtn').classList.add('hidden');
-    var state=window.DutchTrainerPractice?.getState(); qs('sessionCounter').textContent=((state?.currentIndex||0)+1)+'/'+(state?.questions?.length||0); qs('sessionProgressFill').style.width=((state?.questions?.length?(state.currentIndex/state.questions.length)*100:0))+'%';
-  }
-  async function start(options) { try { var r=await window.DutchTrainerPractice.startPractice(options||{}); if(!r.success){alert('No vocabulary available for this practice selection.');return;} navigateTo('practice'); renderQuestion(r.question); } catch(e){console.error(e);alert('Could not start practice: '+e.message);} }
-  async function quickPractice(){
-    var words=await getSelectedVocabulary();
-    var pool=words;
-    if(window.DutchTrainerSelection?.selectDueVocabulary) { try { var due=await window.DutchTrainerSelection.selectDueVocabulary(); if(due.length) pool=due; } catch(_){} }
-    return start({mode:'start',questionCount:10,exerciseType:'mixed',vocabulary:pool});
-  }
-  async function submit(){ try { var r=await window.DutchTrainerPractice.checkAnswer(selectedAnswer()); if(!r.success){ if(r.reason==='empty-answer') return; return; } qs('feedbackArea').textContent=r.feedback.correct?'Correct!':'Not quite. Answer: '+(r.feedback.correctAnswer||''); qs('checkBtn').classList.add('hidden'); qs('nextBtn').classList.remove('hidden'); }catch(e){console.error(e);alert('Could not check answer: '+e.message);} }
-  function next(){ var r=window.DutchTrainerPractice.nextQuestion(); if(r.completed){ renderComplete(r.state); return; } renderQuestion(r.question); }
-  function renderComplete(s){ navigateTo('complete'); var total=s.answerCount||0, pct=total?Math.round(s.correctCount/total*100):0; qs('sessionScore').textContent=s.correctCount+' / '+total+' correct ('+pct+'%)'; qs('sessionSummary').textContent='Practice session completed.'; }
-  async function loadPacks(){ var sel=qs('packSelector'); if(!sel||!window.DutchTrainerPacks)return; try{var packs=await window.DutchTrainerPacks.getAllPacks(); sel.innerHTML='<option value="all">All Packs</option>'; packs.forEach(function(p){var o=document.createElement('option');o.value=p.packId;o.textContent=p.name;sel.appendChild(o);});}catch(e){console.error(e);} }
-  function bind(){
-    qs('quickPracticeBtn')?.addEventListener('click',quickPractice);
-    qs('practiceSetupBtn')?.addEventListener('click',function(){openModal('practiceModal');loadPacks();});
-    qs('closePracticeModal')?.addEventListener('click',function(){closeModal('practiceModal');});
-    qs('startPracticeBtn')?.addEventListener('click',async function(){var count=Number(qs('customQuestionCount')?.value)||Number(document.querySelector('.countPreset.active')?.dataset.value)||20;var filter=qs('vocabularyFilter')?.value||'all';var pack=qs('packSelector')?.value||'all';var words=await getSelectedVocabulary();if(filter==='new'&&window.DutchTrainerSelection?.selectNewVocabulary)words=await window.DutchTrainerSelection.selectNewVocabulary();else if(filter==='weak'&&window.DutchTrainerSelection?.selectWeakVocabulary)words=await window.DutchTrainerSelection.selectWeakVocabulary();else if(filter==='due'&&window.DutchTrainerSelection?.selectDueVocabulary)words=await window.DutchTrainerSelection.selectDueVocabulary();else if(filter==='pack'&&pack!=='all'&&window.DutchTrainerSelection?.selectVocabularyPack)words=await window.DutchTrainerSelection.selectVocabularyPack(pack);closeModal('practiceModal');start({questionCount:count,exerciseType:qs('exerciseType')?.value||'meaning',vocabulary:words,mode:'full'});});
-    document.querySelectorAll('.countPreset').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.countPreset').forEach(x=>x.classList.remove('active'));b.classList.add('active');});});
-    qs('dashboardBtn')?.addEventListener('click',function(){navigateTo('dashboard');});
-    qs('packsBtn')?.addEventListener('click',function(){alert('Word Packs are managed by the V2 pack/import layer.');});
-    qs('historyBtn')?.addEventListener('click',function(){alert('History is currently available through practice results.');});
-    qs('settingsBtn')?.addEventListener('click',function(){alert('Settings are stored by storage.js.');});
-    document.querySelectorAll('.backBtn').forEach(function(b){b.addEventListener('click',function(){navigateTo('home');});});
-    qs('exitPracticeBtn')?.addEventListener('click',function(){navigateTo('home');});
-    qs('checkBtn')?.addEventListener('click',submit); qs('nextBtn')?.addEventListener('click',next);
-    qs('practiceAgainBtn')?.addEventListener('click',function(){navigateTo('home');openModal('practiceModal');}); qs('backDashboardBtn')?.addEventListener('click',function(){navigateTo('dashboard');});
-    document.addEventListener('keydown',function(e){if(e.key==='Enter'&&qs('practiceScreen')?.classList.contains('active')){e.preventDefault();if(!qs('checkBtn').classList.contains('hidden'))submit();else next();}});
-  }
-  function initializeUI(){bind();}
-  window.navigateTo=navigateTo; window.initializeUI=initializeUI; window.DutchTrainerUI={navigateTo,initialize:initializeUI,renderQuestion};
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initializeUI,{once:true});else initializeUI();
-})();
+(function(){
+function q(id){return document.getElementById(id)}
+function nav(name){document.querySelectorAll('.screen').forEach(e=>e.classList.remove('active'));const map={home:'homeScreen',dashboard:'dashboardScreen',packs:'packsScreen',settings:'settingsScreen',practice:'practiceScreen',complete:'completeScreen'};const e=q(map[name]||name);if(e)e.classList.add('active');if(name==='dashboard'&&window.DutchTrainerDashboard)window.DutchTrainerDashboard.render().catch(console.error);if(name==='packs')loadPacks();if(name==='settings')loadSettings();if(typeof setLastScreen==='function')setLastScreen(name)}
+function renderQuestion(x){if(!x)return;q('exerciseBadge').textContent=x.type||'Practice';q('questionPrompt').textContent=x.exercise?.prompt||x.exercise?.question||x.word?.word||'';q('questionContext').textContent=x.exercise?.context||x.exercise?.sentence||x.exercise?.meaning||'';const a=q('answerArea');a.innerHTML='';if(Array.isArray(x.exercise?.options)){x.exercise.options.forEach(v=>{const l=document.createElement('label');const i=document.createElement('input');i.type='radio';i.name='practiceChoice';i.value=v;l.append(i,document.createTextNode(' '+v));a.append(l)})}else{const i=document.createElement('input');i.id='answerInput';i.type='text';i.autocomplete='off';i.placeholder='Type your answer';a.appendChild(i);i.focus()}q('feedbackArea').textContent='';q('checkBtn').classList.remove('hidden');q('nextBtn').classList.add('hidden');const s=window.DutchTrainerPractice?.getState();q('sessionCounter').textContent=((s?.currentIndex||0)+1)+'/'+(s?.questions?.length||0)}
+async function start(o){try{const r=await window.DutchTrainerPractice.startPractice(o);if(!r.success){alert('No vocabulary available.');return}nav('practice');renderQuestion(r.question)}catch(e){console.error(e);alert('Could not start practice: '+e.message)}}
+async function loadPacks(){const list=q('packsList'),sel=q('packSelector');if(!window.DutchTrainerPacks)return;try{const ps=await window.DutchTrainerPacks.getAllPacks();if(sel){sel.innerHTML='<option value="all">All Packs</option>';ps.forEach(p=>{const o=document.createElement('option');o.value=p.packId;o.textContent=p.name;sel.appendChild(o)})}if(list){list.innerHTML='';ps.forEach(p=>{const d=document.createElement('div');d.className='card';const title=document.createElement('strong');title.textContent=p.name;const desc=document.createElement('p');desc.textContent=p.description||'';const count=document.createElement('small');count.textContent=(p.wordCount||0)+' words';d.append(title,desc,count);list.appendChild(d)})}}catch(e){if(list)list.textContent='Could not load packs: '+e.message}}
+function loadSettings(){const s=getPracticeSettings();q('settingsExerciseType').value=s.exerciseType;q('settingsQuestionCount').value=s.questionCount;const u=getUISettings();q('settingsTheme').value=u.theme||'system'}
+function saveSettings(){savePracticeSettings({exerciseType:q('settingsExerciseType').value,questionCount:Number(q('settingsQuestionCount').value)||20,vocabularyFilter:getPracticeSettings().vocabularyFilter,packId:getPracticeSettings().packId});saveUISettings({theme:q('settingsTheme').value});q('settingsStatus').textContent='Settings saved.'}
+async function importPack(){const f=q('packFileInput').files[0];if(!f){q('importStatus').textContent='Choose a file first.';return}try{const text=await f.text();const name=q('packNameInput').value.trim()||f.name.replace(/\.[^.]+$/,'');const I=window.DutchTrainerImport;if(!I)throw Error('Import layer unavailable.');const fn=I.importText||I.importVocabulary||I.importFile;if(typeof fn!=='function')throw Error('No supported import function is available.');const r=await fn(text,{name,fileName:f.name});q('importStatus').textContent='Import complete: '+(r?.count??r?.imported??'vocabulary imported')+'.';await loadPacks();if(window.DutchTrainerDashboard)window.DutchTrainerDashboard.render().catch(console.error)}catch(e){console.error(e);q('importStatus').textContent='Import failed: '+e.message}}
+function answer(){const i=q('answerInput');if(i)return i.value;const r=document.querySelector('#answerArea input[type=radio]:checked');return r?r.value:''}
+function bind(){q('quickPracticeBtn')?.addEventListener('click',async()=>start({mode:'start',questionCount:10,exerciseType:'mixed',vocabulary:await getSelectedVocabulary()}));q('practiceSetupBtn')?.addEventListener('click',()=>{q('practiceModal').classList.remove('hidden');loadPacks()});q('closePracticeModal')?.addEventListener('click',()=>q('practiceModal').classList.add('hidden'));q('dashboardBtn')?.addEventListener('click',()=>nav('dashboard'));q('packsBtn')?.addEventListener('click',()=>nav('packs'));q('settingsBtn')?.addEventListener('click',()=>nav('settings'));q('historyBtn')?.addEventListener('click',()=>alert('History is recorded with completed practice sessions.'));q('importPackBtn')?.addEventListener('click',importPack);q('saveSettingsBtn')?.addEventListener('click',saveSettings);document.querySelectorAll('.backBtn').forEach(b=>b.addEventListener('click',()=>nav('home')));q('startPracticeBtn')?.addEventListener('click',async()=>{try{const n=Number(q('customQuestionCount').value)||Number(document.querySelector('.countPreset.active')?.dataset.value)||20;const f=q('vocabularyFilter').value;let words=await getSelectedVocabulary();if(f==='new')words=await DutchTrainerSelection.selectNewVocabulary();else if(f==='weak')words=await DutchTrainerSelection.selectWeakVocabulary();else if(f==='due')words=await DutchTrainerSelection.selectDueVocabulary();else if(f==='pack'&&q('packSelector').value!=='all')words=await DutchTrainerSelection.selectVocabularyPack(q('packSelector').value);q('practiceModal').classList.add('hidden');await start({questionCount:n,exerciseType:q('exerciseType').value,vocabulary:words})}catch(e){console.error(e);alert('Could not start practice: '+e.message)}});document.querySelectorAll('.countPreset').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.countPreset').forEach(x=>x.classList.remove('active'));b.classList.add('active')}));q('checkBtn')?.addEventListener('click',async()=>{try{const r=await DutchTrainerPractice.checkAnswer(answer());if(r.success){q('feedbackArea').textContent=r.feedback.correct?'Correct!':'Not quite. Answer: '+(r.feedback.correctAnswer||'');q('checkBtn').classList.add('hidden');q('nextBtn').classList.remove('hidden')}}catch(e){console.error(e);alert('Could not check answer: '+e.message)}});q('nextBtn')?.addEventListener('click',()=>{const r=DutchTrainerPractice.nextQuestion();if(r.completed){nav('complete');q('sessionScore').textContent=r.state.correctCount+' / '+r.state.answerCount+' correct'}else renderQuestion(r.question)});q('exitPracticeBtn')?.addEventListener('click',()=>nav('home'));q('backDashboardBtn')?.addEventListener('click',()=>nav('dashboard'));q('practiceAgainBtn')?.addEventListener('click',()=>nav('home'))}
+window.navigateTo=nav;window.initializeUI=function(){bind()};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',window.initializeUI,{once:true});else window.initializeUI();})();
