@@ -70,7 +70,6 @@ function normalizePracticeExerciseType(type) {
 function buildMixedExerciseTypes(count) { const types = ["meaning", "recall", "fill", "choose", "production"]; return Array.from({ length: count }, (_, i) => types[i % types.length]); }
 function practiceShuffle(array) { const result = [...array]; for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [result[i], result[j]] = [result[j], result[i]]; } return result; }
 
-/* Canonical selection. An explicit vocabulary array is a transient pool for Start Practice only. */
 async function resolvePracticeVocabulary(options = {}) {
     if (Array.isArray(options.vocabulary)) {
         return { words: options.vocabulary, selection: typeof getVocabularySelection === "function" ? getVocabularySelection() : { source: "all", packId: null } };
@@ -80,21 +79,44 @@ async function resolvePracticeVocabulary(options = {}) {
     return { words: Array.isArray(words) ? words : [], selection: typeof getVocabularySelection === "function" ? getVocabularySelection() : { source: "all", packId: null } };
 }
 
-/* exercises.js is the single exercise factory; no duplicate V2 factory is kept here. */
-function buildPracticeExercise(word, type, vocabulary) {
+/*
+ * Multiple-choice questions have two vocabulary pools:
+ *   1. selectedVocabulary = words being tested
+ *   2. fullVocabulary    = complete installed vocabulary, used only for distractors
+ *
+ * The full pool is loaded here, at the point Practice actually starts. This
+ * avoids relying on a startup cache that may be empty or stale after imports.
+ */
+async function resolvePracticeFullVocabulary(selectedVocabulary) {
+    try {
+        if (typeof getAllWords === "function") {
+            const words = await getAllWords();
+            if (Array.isArray(words) && words.length) return words;
+        }
+    } catch (error) {
+        console.warn("Could not load full vocabulary for multiple-choice distractors:", error);
+    }
+    if (Array.isArray(window.DutchTrainerV2VocabularyPool) && window.DutchTrainerV2VocabularyPool.length) {
+        return window.DutchTrainerV2VocabularyPool;
+    }
+    return Array.isArray(selectedVocabulary) ? selectedVocabulary : [];
+}
+
+function buildPracticeExercise(word, type, vocabulary, fullVocabulary = vocabulary) {
     if (typeof createExercise !== "function") throw new Error("exercises.js: createExercise() is unavailable.");
     const normalized = normalizePracticeExerciseType(type);
-    const exercise = createExercise(word, normalized, vocabulary);
+    const distractorVocabulary = Array.isArray(fullVocabulary) && fullVocabulary.length ? fullVocabulary : vocabulary;
+    const exercise = createExercise(word, normalized, distractorVocabulary);
     return { ...practiceClone(exercise), type: normalized, wordId: practiceGetWordId(word), word };
 }
-function buildPracticeQuestions(vocabulary, count, exerciseType) {
+function buildPracticeQuestions(vocabulary, count, exerciseType, fullVocabulary = vocabulary) {
     if (!vocabulary.length) return [];
     const total = practiceNormalizeCount(count);
     const normalized = normalizePracticeExerciseType(exerciseType);
     const types = normalized === "mixed" ? buildMixedExerciseTypes(total) : Array(total).fill(normalized);
     const pool = practiceShuffle(vocabulary);
     return Array.from({ length: total }, (_, index) => {
-        const word = pool[index % pool.length], type = types[index], exercise = buildPracticeExercise(word, type, vocabulary);
+        const word = pool[index % pool.length], type = types[index], exercise = buildPracticeExercise(word, type, vocabulary, fullVocabulary);
         return { id: `${practiceGetWordId(word)}-${index}-${Date.now()}`, wordId: practiceGetWordId(word), packId: practiceGetPackId(word), type, word, exercise, answered: false, answer: null, result: null, feedback: null };
     });
 }
@@ -132,7 +154,9 @@ async function handlePracticeEnter(answer = undefined) { if (!PracticeState.acti
 async function startPractice(options = {}) {
     const resolved = await resolvePracticeVocabulary(options), questionCount = practiceNormalizeCount(options.questionCount ?? 10), exerciseType = normalizePracticeExerciseType(options.exerciseType ?? "meaning");
     if (!resolved.words.length) return { success: false, reason: "no-vocabulary", selection: resolved.selection, state: getPracticeState() };
-    const questions = buildPracticeQuestions(resolved.words, questionCount, exerciseType);
+    const fullVocabulary = await resolvePracticeFullVocabulary(resolved.words);
+    window.DutchTrainerV2VocabularyPool = fullVocabulary;
+    const questions = buildPracticeQuestions(resolved.words, questionCount, exerciseType, fullVocabulary);
     Object.assign(PracticeState, { active: true, completed: false, mode: options.mode ?? "full", exerciseType, questionCount, questions, currentIndex: 0, currentQuestion: questions[0] ?? null, currentExercise: questions[0]?.exercise ?? null, currentWord: questions[0]?.word ?? null, currentAnswer: null, answered: false, feedback: null, startedAt: practiceNowISO(), completedAt: null, correctCount: 0, incorrectCount: 0, answerCount: 0, selectedVocabulary: practiceClone(resolved.words), selectedVocabularyIds: resolved.words.map(practiceGetWordId), selectedPackId: resolved.selection?.packId ?? null, vocabularySource: resolved.selection?.source ?? "all", mixedTypes: exerciseType === "mixed" ? buildMixedExerciseTypes(questionCount) : [], results: [], sessionId: `session-${Date.now()}`, lastAnswerAt: null });
     emitPracticeEvent("start", getPracticeState()); emitPracticeEvent("state", getPracticeState()); return { success: true, question: PracticeState.currentQuestion, state: getPracticeState() };
 }
