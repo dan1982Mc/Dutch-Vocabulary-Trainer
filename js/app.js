@@ -69,8 +69,8 @@ async function initializeStorageLayer() {
 }
 
 async function initializeDatabaseLayer() {
-    if (typeof initializeDatabase !== "function") throw new Error("db.js: initializeDatabase() is unavailable.");
-    return await initializeDatabase();
+    if (typeof initDatabase !== "function") throw new Error("db.js: initDatabase() is unavailable.");
+    return await initDatabase();
 }
 
 async function initializeMigrationLayer() {
@@ -79,9 +79,8 @@ async function initializeMigrationLayer() {
 }
 
 async function initializePackLayer() {
-    if (typeof initializePacks === "function") return await initializePacks();
-    if (typeof ensureDefaultPack === "function") return await ensureDefaultPack();
-    throw new Error("packs.js: no canonical pack initialization function is available.");
+    if (typeof ensureDefaultPack !== "function") throw new Error("packs.js: ensureDefaultPack() is unavailable.");
+    return await ensureDefaultPack();
 }
 
 function initializeSelectionLayer() {
@@ -112,6 +111,7 @@ async function initializePracticeLayer() {
 
 async function initializeSchedulerLayer() {
     if (typeof initializeScheduler === "function") return await initializeScheduler();
+    if (window.DutchTrainerScheduler?.initialize) return await window.DutchTrainerScheduler.initialize();
     return true;
 }
 
@@ -146,11 +146,34 @@ function getApplicationSelection() {
     return refreshApplicationSelectionState();
 }
 
-function changeApplicationSelection(source, packId = null) {
-    if (typeof changeVocabularySelection !== "function") throw new Error("selection.js: changeVocabularySelection() is unavailable.");
-    AppState.vocabularySelection = changeVocabularySelection(source, packId);
+async function changeApplicationSelection(source, packId = null) {
+    const normalized = String(source || "all").trim().toLowerCase();
+    switch (normalized) {
+        case "pack":
+            if (typeof selectVocabularyPack !== "function") throw new Error("selection.js: selectVocabularyPack() is unavailable.");
+            await selectVocabularyPack(packId);
+            break;
+        case "new":
+            if (typeof selectNewVocabulary !== "function") throw new Error("selection.js: selectNewVocabulary() is unavailable.");
+            await selectNewVocabulary();
+            break;
+        case "weak":
+            if (typeof selectWeakVocabulary !== "function") throw new Error("selection.js: selectWeakVocabulary() is unavailable.");
+            await selectWeakVocabulary();
+            break;
+        case "due":
+            if (typeof selectDueVocabulary !== "function") throw new Error("selection.js: selectDueVocabulary() is unavailable.");
+            await selectDueVocabulary();
+            break;
+        case "all":
+        default:
+            if (typeof selectAllVocabulary !== "function") throw new Error("selection.js: selectAllVocabulary() is unavailable.");
+            await selectAllVocabulary();
+            break;
+    }
+    AppState.vocabularySelection = getVocabularySelection();
     dispatchAppEvent(APP_EVENTS.SELECTION_CHANGED, { selection: AppState.vocabularySelection });
-    refreshApplicationStatistics();
+    await refreshApplicationStatistics();
     return AppState.vocabularySelection;
 }
 
@@ -171,10 +194,14 @@ async function refreshApplicationStatistics() {
 }
 
 /* =========================================================
-   NAVIGATION
+   APPLICATION NAVIGATION
+
+   UI navigation remains owned by ui.js. The application
+   controller exposes a namespaced navigation method without
+   overwriting the global navigateTo() function.
 ========================================================= */
 
-async function navigateTo(view, options = {}) {
+async function navigateApplicationTo(view, options = {}) {
     const normalizedView = String(view || "").trim().toLowerCase();
     const aliases = { home: "home", dashboard: "dashboard", practice: "practice", "start-practice": "start-practice", startpractice: "start-practice", import: "import", settings: "settings" };
     const targetView = aliases[normalizedView];
@@ -232,24 +259,12 @@ function showViewFallback(view) {
    QUICK PRACTICE
 ========================================================= */
 
-function isApplicationSelectionAll() {
-    const selection = getApplicationSelection();
-    return !selection || String(selection.source || "all").toLowerCase() === "all";
-}
-
-function isApplicationQuickPracticeWord(word) {
-    if (!word) return false;
-    if (word.isNew === true || word.isDue === true) return true;
-    const mastery = Number(word.mastery ?? word.masteryScore ?? 0);
-    if (mastery < 40) return true;
-    const due = new Date(word.nextReview ?? word.nextReviewAt ?? word.dueAt ?? "").getTime();
-    return Number.isFinite(due) && due <= Date.now();
-}
-
 async function startQuickPractice(options = {}) {
     const selected = await getApplicationSelectedVocabulary();
     const allWords = selected.length && !isApplicationSelectionAll() ? selected : await getApplicationVocabulary();
-    const quickWords = allWords.filter(isApplicationQuickPracticeWord);
+    const quickWords = typeof selectStartPracticeWords === "function"
+        ? selectStartPracticeWords(allWords, normalizeQuestionCount(options.questionCount ?? 10))
+        : allWords;
     const questionCount = normalizeQuestionCount(options.questionCount ?? 10);
 
     const practiceOptions = {
@@ -257,7 +272,7 @@ async function startQuickPractice(options = {}) {
         mode: "start",
         exerciseType: "meaning",
         questionCount,
-        source: options.source
+        vocabulary: quickWords
     };
 
     dispatchAppEvent(APP_EVENTS.PRACTICE_STARTED, {
@@ -271,6 +286,11 @@ async function startQuickPractice(options = {}) {
     const session = await startPracticeSession(practiceOptions);
     AppState.practiceSession = session;
     return session;
+}
+
+function isApplicationSelectionAll() {
+    const selection = getApplicationSelection();
+    return !selection || String(selection.source || "all").toLowerCase() === "all";
 }
 
 function normalizeQuestionCount(value) {
@@ -329,7 +349,7 @@ window.DutchTrainerApp = {
     events: APP_EVENTS,
     initialize: initializeApplication,
     init: initializeApplication,
-    navigateTo,
+    navigateTo: navigateApplicationTo,
     startQuickPractice,
     getVocabulary: getApplicationVocabulary,
     getSelectedVocabulary: getApplicationSelectedVocabulary,
