@@ -1,0 +1,25 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Dutch Vocabulary Trainer V2.3 core tests</title>
+<style>body{font:14px system-ui;margin:24px}li.pass{color:green}li.fail{color:#b00}code{white-space:pre-wrap}</style>
+<h1>V2.3 core tests</h1><p id="summary">Running…</p><ol id="results"></ol>
+<script>
+(async()=>{
+const results=document.querySelector('#results'),summary=document.querySelector('#summary');let pass=0,fail=0;
+function test(name,fn){try{const r=fn();if(r&&typeof r.then==='function')return r.then(()=>record(name,true)).catch(e=>record(name,false,e));record(name,true)}catch(e){record(name,false,e)}}
+function record(name,ok,e){const li=document.createElement('li');li.className=ok?'pass':'fail';li.textContent=(ok?'PASS: ':'FAIL: ')+name+(e?' — '+e.message:'');results.append(li);ok?pass++:fail++;summary.textContent=`${pass} passed, ${fail} failed`;}
+const files=['../js/version.js','../js/db.js','../js/import.js','../js/scheduler.js','../js/practice.js','../js/packs-ui.js','../js/ui.js'];
+for(const f of files)await test('Loads '+f,async()=>{const r=await fetch(f,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);});
+await test('version.js exposes V2.3.0',async()=>{await load('../js/version.js');if(!window.DutchTrainerVersion||window.DutchTrainerVersion.app!=='2.3.0')throw Error('unexpected version')});
+await test('import.js exposes validation API',async()=>{await load('../js/import.js');if(!window.DutchTrainerImport||typeof window.DutchTrainerImport.validate!=='function')throw Error('missing validation API')});
+await test('import validation rejects empty input',async()=>{if(window.DutchTrainerImport.validate({}).valid)throw Error('empty input accepted')});
+await test('import validation accepts a basic vocabulary pack',async()=>{const r=window.DutchTrainerImport.validate({name:'Test',words:[{id:'1',dutch:'huis',english:'house'}]});if(!r.valid||r.wordCount!==1)throw Error('valid pack rejected')});
+await test('Packs UI exposes refresh()',async()=>{await load('../js/packs-ui.js');if(!window.DutchTrainerPacksUI||typeof window.DutchTrainerPacksUI.refresh!=='function')throw Error('refresh missing')});
+await test('ui.js contains Packs refresh wiring',async()=>{const t=await (await fetch('../js/ui.js',{cache:'no-store'})).text();if(!/nav\(['"]packs['"]\)[\s\S]*?DutchTrainerPacksUI\.refresh/.test(t))throw Error('nav packs refresh missing');if(!/setActivePack[\s\S]*?DutchTrainerPacksUI\.refresh/.test(t))throw Error('active pack refresh missing')});
+await test('backup/session APIs exist after DB initialization',async()=>{await load('../js/db.js');if(typeof window.saveSession!=='function'||typeof window.getSessions!=='function'||typeof window.exportDatabaseData!=='function')throw Error('DB APIs missing')});
+summary.textContent=()=>{};
+summary.textContent='Tests complete — '+pass+' passed, '+fail+' failed';
+if(fail)document.body.dataset.failed='true';
+async function load(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(Error('load failed'));document.head.append(s)})}
+})();
+</script>
