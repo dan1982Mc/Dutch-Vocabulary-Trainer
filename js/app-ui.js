@@ -8,6 +8,7 @@
     const $ = id => document.getElementById(id);
     const screens = ['home','dashboard','packs','settings','practice','complete','history'];
     const ids = { home:'homeScreen', dashboard:'dashboardScreen', packs:'packsScreen', settings:'settingsScreen', practice:'practiceScreen', complete:'completeScreen', history:'historyScreen' };
+    let selectedPackId = 'all';
 
     function nav(name) {
         screens.forEach(s => $(ids[s])?.classList.toggle('active', s === name));
@@ -17,6 +18,11 @@
     }
 
     async function words() { return app.vocabulary.getAll(); }
+
+    async function selectedWords() {
+        const ws = await words();
+        return selectedPackId === 'all' ? ws : ws.filter(w => String(w.packId || 'default') === selectedPackId);
+    }
 
     function stats(ws) {
         const mastery = ws.map(w => Number(w.mastery) || 0);
@@ -30,28 +36,54 @@
     }
 
     async function renderDashboard() {
-        const ws = await words(), s = stats(ws);
+        const ws = await selectedWords(), all = await words(), s = stats(ws), a = stats(all);
         const set = (id, value) => { if ($(id)) $(id).textContent = value; };
-        set('allWords', s.total); set('allLearned', s.learned); set('allDue', s.due); set('allWeak', s.weak);
-        set('allProgressText', s.average + '%');
-        if ($('allProgressFill')) $('allProgressFill').style.width = s.average + '%';
+        set('allWords', a.total); set('allLearned', a.learned); set('allDue', a.due); set('allWeak', a.weak);
+        set('allProgressText', a.average + '%');
+        if ($('allProgressFill')) $('allProgressFill').style.width = a.average + '%';
         set('selectedLearned', s.learned); set('selectedDue', s.due); set('selectedWeak', s.weak); set('selectedNew', ws.filter(w => (Number(w.mastery) || 0) <= 0).length);
         set('selectedProgressText', s.average + '%');
         if ($('selectedProgressFill')) $('selectedProgressFill').style.width = s.average + '%';
-        set('selectedFilterLabel', 'All Vocabulary');
+        set('selectedFilterLabel', selectedPackId === 'all' ? 'All Vocabulary' : selectedPackId);
     }
 
     async function renderPacks() {
         const list = $('packsList'); if (!list) return;
-        const ws = await words(); const groups = new Map();
+        const ws = await words();
+        const groups = new Map();
         ws.forEach(w => { const id = String(w.packId || 'default'); if (!groups.has(id)) groups.set(id, []); groups.get(id).push(w); });
         list.innerHTML = '';
-        if (!groups.size) { list.textContent = 'No vocabulary packs installed.'; return; }
+
+        const selector = document.createElement('select');
+        selector.id = 'v24PackSelector';
+        selector.innerHTML = '<option value="all">All Vocabulary</option>';
+        groups.forEach((items, packId) => {
+            const option = document.createElement('option');
+            option.value = packId;
+            option.textContent = `${packId} (${items.length})`;
+            selector.append(option);
+        });
+        selector.value = groups.has(selectedPackId) || selectedPackId === 'all' ? selectedPackId : 'all';
+        selectedPackId = selector.value;
+        selector.addEventListener('change', async () => {
+            selectedPackId = selector.value;
+            await renderPacks();
+            await renderDashboard();
+        });
+        const label = document.createElement('label');
+        label.textContent = 'Active vocabulary pack';
+        label.append(document.createElement('br'), selector);
+        list.append(label);
+
+        if (!groups.size) { const empty = document.createElement('p'); empty.textContent = 'No vocabulary packs installed.'; list.append(empty); return; }
         groups.forEach((items, packId) => {
             const card = document.createElement('div'); card.className = 'card pack-card';
+            if (packId === selectedPackId) card.classList.add('active');
             const title = document.createElement('strong'); title.textContent = packId === 'default' ? 'Default Vocabulary' : packId;
             const p = document.createElement('p'); p.textContent = `${items.length} words`;
-            card.append(title, p); list.append(card);
+            const use = document.createElement('button'); use.className = 'secondary'; use.textContent = packId === selectedPackId ? 'Selected' : 'Use Pack'; use.disabled = packId === selectedPackId;
+            use.addEventListener('click', async () => { selectedPackId = packId; await renderPacks(); await renderDashboard(); });
+            card.append(title, p, use); list.append(card);
         });
     }
 
@@ -71,12 +103,12 @@
     }
 
     async function startPractice() {
-        const ws = await words();
+        const ws = await selectedWords();
         if (!ws.length) { alert('No vocabulary available. Import or add vocabulary first.'); return; }
         const type = $('exerciseType')?.value || $('settingsExerciseType')?.value || 'meaning';
         const raw = $('customQuestionCount')?.value || document.querySelector('.countPreset.active')?.dataset.value || $('settingsQuestionCount')?.value || 20;
         const count = Math.max(1, Math.min(500, Number(raw) || 20));
-        const session = await app.practice.start({ vocabulary: ws, exerciseType: type, questionCount: count, mode: 'full' });
+        const session = await app.practice.start({ vocabulary: ws, exerciseType: type, questionCount: Math.min(count, ws.length), mode: 'full' });
         if (!session?.success) { alert('Could not start practice.'); return; }
         nav('practice'); renderQuestion(session.question);
     }
