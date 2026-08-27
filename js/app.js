@@ -1,16 +1,37 @@
-'use strict';
+/* Dutch Vocabulary Trainer V2.4 — tiny application entry point */
+(function (window) {
+    'use strict';
 
-// V2.4 Stable Core application namespace.
-// This first step defines the single public namespace without changing V2.3 runtime behavior.
-const DutchTrainer = window.DutchTrainer || {};
+    const DutchTrainer = window.DutchTrainer || (window.DutchTrainer = {});
+    DutchTrainer.version = '2.4.0';
+    DutchTrainer.schemaVersion = 3;
 
-DutchTrainer.version = '2.4.0';
-DutchTrainer.schemaVersion = 3;
-DutchTrainer.db = DutchTrainer.db || {};
-DutchTrainer.vocabulary = DutchTrainer.vocabulary || {};
-DutchTrainer.practice = DutchTrainer.practice || {};
-DutchTrainer.history = DutchTrainer.history || {};
-DutchTrainer.scheduler = DutchTrainer.scheduler || {};
-DutchTrainer.ui = DutchTrainer.ui || {};
+    const modules = [
+        'db.js',
+        'vocabulary.js',
+        'exercises.js',
+        'mastery.js',
+        'scheduler.js',
+        'history.js',
+        'practice.js'
+    ];
 
-window.DutchTrainer = DutchTrainer;
+    function load(src) {
+        return new Promise((resolve, reject) => {
+            if (document.querySelector(`script[data-v24-module="${src}"]`)) return resolve();
+            const script = document.createElement('script');
+            script.src = new URL(src, document.currentScript?.src || window.location.href).href;
+            script.dataset.v24Module = src;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error(`Could not load V2.4 module: ${src}`));
+            document.head.appendChild(script);
+        });
+    }
+
+    DutchTrainer.ready = modules.reduce(
+        (promise, module) => promise.then(() => load(module)),
+        Promise.resolve()
+    ).then(() => window.DutchTrainer);
+
+    window.DutchTrainer = DutchTrainer;
+})(window);
