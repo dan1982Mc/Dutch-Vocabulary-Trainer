@@ -1,5 +1,5 @@
 /* =========================================================
-   DUTCH VOCABULARY TRAINER V2.0
+   DUTCH VOCABULARY TRAINER V2
    IndexedDB Layer
 ========================================================= */
 const DB_NAME = "DutchVocabularyTrainer";
@@ -24,10 +24,8 @@ async function setSetting(key, value) { return requestPromise(transaction(STORES
 async function getSetting(key, fallback = null) { const result = await requestPromise(transaction(STORES.settings).get(key)); return result ? result.value : fallback; }
 async function saveSession(session) { return requestPromise(transaction(STORES.sessions, "readwrite").put(session)); }
 async function getSessions() { return requestPromise(transaction(STORES.sessions).getAll()); }
-async function calculatePackStats(packId) { const words = await getAllWords(); const packWords = words.filter(w => w.packId === packId); const total = packWords.length; return { total, learned: packWords.filter(w => w.mastery >= 90).length, weak: packWords.filter(w => w.mastery > 0 && w.mastery < 40).length, due: packWords.filter(w => (w.nextReview || 0) <= Date.now()).length, new: packWords.filter(w => w.isNew).length, averageMastery: total ? Math.round(packWords.reduce((sum, w) => sum + (w.mastery || 0), 0) / total) : 0 }; }
-async function ensureLegacyPack() { const existing = await getPackRecord("legacy"); if (existing) return existing; return savePackRecord({ packId: "legacy", name: "Legacy Vocabulary", version: 1, author: "V1.2 Migration", description: "Words imported before V2.0", importDate: new Date().toISOString(), wordCount: 0, tags: ["legacy"] }); }
-async function initializeDB() { await initDatabase(); await ensureLegacyPack(); console.log("Dutch Vocabulary Trainer V2.0 database ready."); }
-
-/* Scheduler has a DOMContentLoaded hook for backwards compatibility. Make the
-   database open promise available immediately so that hook never races the DB. */
+async function calculatePackStats(packId) { const words = await getAllWords(); const packWords = words.filter(w => String(w.packId||"") === String(packId)); const total = packWords.length; return { total, learned: packWords.filter(w => Number(w.mastery??w.masteryScore??0) >= 90).length, weak: packWords.filter(w => Number(w.mastery??w.masteryScore??0) > 0 && Number(w.mastery??w.masteryScore??0) < 40).length, due: packWords.filter(w => { const d=w.dueAt??w.nextReview; return d ? new Date(d).getTime() <= Date.now() : false; }).length, new: packWords.filter(w => w.isNew === true).length, averageMastery: total ? Math.round(packWords.reduce((sum,w)=>sum+Number(w.mastery??w.masteryScore??0),0)/total) : 0 }; }
+/* V2 does not create or retain a Legacy Pack. Existing legacy records are removed at startup. */
+async function ensureLegacyPack() { try { const existing = await getPackRecord("legacy"); if (existing) await deletePackRecord("legacy"); } catch (_) {} return null; }
+async function initializeDB() { await initDatabase(); await ensureLegacyPack(); console.log("Dutch Vocabulary Trainer V2 database ready."); }
 window.DutchTrainerDatabaseReady = initDatabase();
