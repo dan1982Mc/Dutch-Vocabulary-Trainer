@@ -17,7 +17,8 @@
         'mastery.js',
         'scheduler-v2.js',
         'history.js',
-        'practice.js'
+        'practice.js',
+        'import.js'
     ];
 
     function load(src) {
