@@ -1,63 +1,427 @@
-/* =========================================================
-   DUTCH TRAINER V2.3
-   js/practice.js
+'use strict';
 
-   Practice session engine.
-   History is persisted as completed session records in IndexedDB.
-========================================================= */
+/*
+ * Dutch Vocabulary Trainer V2.4
+ * Practice engine only.
+ * No DOM access. No localStorage. No UI dependencies.
+ */
 
-const PRACTICE_EXERCISE_TYPES = { MEANING:"meaning", RECALL:"recall", FILL:"fill", CHOOSE:"choose", PRODUCTION:"production", MIXED:"mixed" };
-const PRACTICE_MODES = { START:"start", FULL:"full" };
-const PRACTICE_DEFAULTS = { questionCount:10, exerciseType:"meaning", mode:"full", feedback:true, mixedDistribution:"balanced" };
+const DutchTrainer = window.DutchTrainer || (window.DutchTrainer = {});
 
-const PracticeState = {
-    active:false, mode:"full", exerciseType:"meaning", questionCount:10, questions:[], currentIndex:0,
-    currentQuestion:null, currentExercise:null, currentWord:null, currentAnswer:null, answered:false,
-    feedback:null, completed:false, startedAt:null, completedAt:null, correctCount:0, incorrectCount:0,
-    answerCount:0, selectedVocabulary:[], selectedVocabularyIds:[], selectedPackId:null,
-    vocabularySource:"all", mixedTypes:[], results:[], sessionId:null, lastAnswerAt:null
+const TYPES = ['meaning', 'recall', 'fill', 'choose', 'production'];
+const DEFAULTS = {
+    questionCount: 10,
+    exerciseType: 'meaning',
+    mode: 'full'
 };
-const PracticeListeners = { answer:[], feedback:[], next:[], complete:[], start:[], state:[] };
 
-function practiceClone(value){if(value===null||value===undefined)return value;try{return JSON.parse(JSON.stringify(value));}catch(_){return value}}
-function practiceNowISO(){return new Date().toISOString()}
-function practiceNormalizeCount(value){const n=Number(value);return Number.isFinite(n)?Math.max(1,Math.min(500,Math.floor(n))):10}
-function practiceGetWordId(word){return word?(word.id??word.wordId??word.uuid??null):null}
-function practiceGetPackId(word){return word?(word.packId??word.wordPackId??word.pack?.id??null):null}
-function practiceNormalizeText(value){return String(value??"").trim().toLowerCase().replace(/\s+/g," ")}
-function practiceCleanText(value){return String(value??"").trim()}
-function practiceGetDutch(word){return String(word?.word??word?.term??word?.dutch??word?.text??"").trim()}
-function practiceGetMeaning(word){return String(word?.meaning??word?.english??word?.translation??word?.definition??"").trim()}
-function practiceSimilarity(answer,expected){const a=practiceNormalizeText(answer),b=practiceNormalizeText(expected);if(!a||!b)return 0;if(typeof calculateSimilarity==="function")return Number(calculateSimilarity(a,b));if(typeof getSimilarityScore==="function")return Number(getSimilarityScore(a,b));if(window.DutchTrainerSimilarity?.calculate)return Number(window.DutchTrainerSimilarity.calculate(a,b));return a===b?1:0}
-function practiceSimilarityThreshold(){return Number(window.DutchTrainerSimilarity?.threshold??window.SIMILARITY_THRESHOLD??0.75)}
-function practiceAnswers(word,exercise){const candidates=[];for(const value of [exercise?.acceptedAnswers,exercise?.answer,exercise?.correctAnswer]){if(Array.isArray(value))candidates.push(...value);else if(value!=null)candidates.push(value)}if(["recall","fill","production"].includes(exercise?.type))candidates.push(practiceGetDutch(word));if(exercise?.type==="meaning")candidates.push(practiceGetMeaning(word));return [...new Set(candidates.map(v=>practiceCleanText(v)).filter(Boolean))]}
-function levenshtein(a,b){a=practiceNormalizeText(a);b=practiceNormalizeText(b);const prev=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){const cur=[i];for(let j=1;j<=b.length;j++)cur[j]=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));for(let j=0;j<=b.length;j++)prev[j]=cur[j]}return prev[b.length]}
-function typoLimit(length){if(length<=5)return 1;if(length<=10)return 2;if(length<=15)return 3;if(length<=20)return 4;return 5}
-function closestPracticeAnswer(value,answers){let best=null;for(const candidate of answers||[]){const answer=practiceCleanText(candidate);if(!answer)continue;const distance=levenshtein(value,answer);if(!best||distance<best.distance)best={answer,distance}}return best}
-function checkPracticeAnswerValue(answer,question){const value=answer&&typeof answer==="object"?(answer.value??answer.answer??answer.text??answer.label??""):answer;const expected=question.exercise?.correctAnswer??practiceAnswers(question.word,question.exercise)[0]??"";if(!practiceCleanText(value))return{empty:true,correct:false,almost:false,score:0,threshold:1,matchedAnswer:null};if(question.exercise?.inputType==="choice"||["choose","meaning"].includes(question.type)){const correct=practiceNormalizeText(value)===practiceNormalizeText(expected);return{empty:false,correct,almost:false,score:correct?1:0,threshold:1,matchedAnswer:expected}}const answers=practiceAnswers(question.word,question.exercise),closest=closestPracticeAnswer(value,answers);if(!closest)return{empty:false,correct:false,almost:false,score:0,threshold:practiceSimilarityThreshold(),matchedAnswer:expected};const exact=closest.distance===0,limit=typoLimit(Math.max(closest.answer.length,practiceCleanText(value).length)),almost=!exact&&closest.distance<=limit,similarity=practiceSimilarity(value,closest.answer);return{empty:false,correct:exact,almost,score:exact?1:similarity,threshold:almost?0:practiceSimilarityThreshold(),matchedAnswer:closest.answer,distance:closest.distance,typoLimit:limit}}
-function normalizePracticeExerciseType(type){if(typeof normalizeExerciseType==="function")return normalizeExerciseType(type)||"meaning";const value=String(type||"meaning").trim().toLowerCase();return({"fill-sentence":"fill","choose-word":"choose"})[value]||value}
-function buildMixedExerciseTypes(count){const types=["meaning","recall","fill","choose","production"];return Array.from({length:count},(_,i)=>types[i%types.length])}
-function practiceShuffle(array){const result=[...array];for(let i=result.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[result[i],result[j]]=[result[j],result[i]]}return result}
-async function resolvePracticeVocabulary(options={}){if(Array.isArray(options.vocabulary))return{words:options.vocabulary,selection:typeof getVocabularySelection==="function"?getVocabularySelection():{source:"all",packId:null}};if(typeof getSelectedVocabulary!==="function")throw new Error("selection.js is required before practice.js");const words=await getSelectedVocabulary();return{words:Array.isArray(words)?words:[],selection:typeof getVocabularySelection==="function"?getVocabularySelection():{source:"all",packId:null}}}
-async function resolvePracticeFullVocabulary(selectedVocabulary){try{if(typeof getAllWords==="function"){const words=await getAllWords();if(Array.isArray(words)&&words.length)return words}}catch(error){console.warn("Could not load full vocabulary for multiple-choice distractors:",error)}if(Array.isArray(window.DutchTrainerV2VocabularyPool)&&window.DutchTrainerV2VocabularyPool.length)return window.DutchTrainerV2VocabularyPool;return Array.isArray(selectedVocabulary)?selectedVocabulary:[]}
-function buildPracticeExercise(word,type,vocabulary,fullVocabulary=vocabulary){if(typeof createExercise!=="function")throw new Error("exercises.js: createExercise() is unavailable.");const normalized=normalizePracticeExerciseType(type),distractorVocabulary=Array.isArray(fullVocabulary)&&fullVocabulary.length?fullVocabulary:vocabulary;return{...practiceClone(createExercise(word,normalized,distractorVocabulary)),type:normalized,wordId:practiceGetWordId(word),word}}
-function buildPracticeQuestions(vocabulary,count,exerciseType,fullVocabulary=vocabulary){if(!vocabulary.length)return[];const total=practiceNormalizeCount(count),normalized=normalizePracticeExerciseType(exerciseType),types=normalized==="mixed"?buildMixedExerciseTypes(total):Array(total).fill(normalized),pool=practiceShuffle(vocabulary);return Array.from({length:total},(_,index)=>{const word=pool[index%pool.length],type=types[index],exercise=buildPracticeExercise(word,type,vocabulary,fullVocabulary);return{id:`${practiceGetWordId(word)}-${index}-${Date.now()}`,wordId:practiceGetWordId(word),packId:practiceGetPackId(word),type,word,exercise,answered:false,answer:null,result:null,feedback:null}})}
-function getPracticeState(){return practiceClone(PracticeState)}
-function emitPracticeEvent(type,payload){for(const listener of PracticeListeners[type]||[]){try{listener(payload)}catch(error){console.warn(`Practice ${type} listener failed:`,error)}}try{window.dispatchEvent(new CustomEvent(`practice-${type}`,{detail:payload}))}catch(_){} }
-function onPracticeEvent(type,listener){if(!PracticeListeners[type]||typeof listener!=="function")return()=>{};PracticeListeners[type].push(listener);return()=>{const i=PracticeListeners[type].indexOf(listener);if(i>=0)PracticeListeners[type].splice(i,1)}}
-function getPracticeExpectedAnswers(question){return question?practiceAnswers(question.word,question.exercise):[]}
-function extractPracticeAnswer(answer,question){return answer&&typeof answer==="object"?(answer.value??answer.answer??answer.text??answer.label??""):(answer??question?.currentAnswer??"")}
-function extractPracticeMastery(result,word){for(const value of [result?.masteryAfter,result?.mastery,result?.newMastery,result?.masteryScore,result?.word?.mastery,word?.mastery,word?.masteryScore]){const n=Number(value);if(Number.isFinite(n))return Math.max(0,Math.min(100,n))}return 0}
-async function updatePracticeMastery(word,options){if(window.DutchTrainerMastery?.recordAnswer)return window.DutchTrainerMastery.recordAnswer(word,options);if(typeof updateWordAfterAnswer==="function")return updateWordAfterAnswer(word,options);throw new Error("mastery.js API is unavailable")}
-async function checkPracticeAnswer(answer){if(!PracticeState.active)return{success:false,reason:"no-active-session"};if(PracticeState.answered)return{success:false,reason:"already-answered",feedback:PracticeState.feedback};const question=PracticeState.currentQuestion;if(!question)return{success:false,reason:"no-question"};const result=checkPracticeAnswerValue(answer,question);if(result.empty)return{success:false,reason:"empty-answer",result};question.answered=true;question.answer=extractPracticeAnswer(answer,question);question.result=result;PracticeState.answered=true;PracticeState.answerCount++;PracticeState.lastAnswerAt=practiceNowISO();if(result.correct)PracticeState.correctCount++;else PracticeState.incorrectCount++;const masteryResult=await updatePracticeMastery(question.word,{correct:result.correct,almost:result.almost,score:result.score,exerciseType:question.type,answer:question.answer,expectedAnswer:result.matchedAnswer??question.exercise?.correctAnswer??"",sessionId:PracticeState.sessionId});const mastery=extractPracticeMastery(masteryResult,question.word),nextReview=masteryResult?.nextReview??masteryResult?.dueAt??question.word?.dueAt??null,feedback={correct:result.correct,almost:result.almost,message:result.correct?"Correct!":(result.almost?"Not quite.":"Not correct."),answer:question.answer,correctAnswer:question.exercise?.correctAnswer??result.matchedAnswer,closestAnswer:result.matchedAnswer,score:result.score,threshold:result.threshold,spellingDistance:result.distance??null,spellingLimit:result.typoLimit??null,masteryBefore:masteryResult?.masteryBefore??null,masteryAfter:masteryResult?.masteryAfter??mastery,masteryDelta:masteryResult?.masteryDelta??null,mastery,nextReview};question.feedback=feedback;PracticeState.feedback=feedback;PracticeState.results.push({questionId:question.id,wordId:question.wordId,packId:question.packId,type:question.type,answer:question.answer,correct:result.correct,almost:result.almost,outcome:result.correct?"correct":(result.almost?"almost":"incorrect"),score:result.score,threshold:result.threshold??null,masteryBefore:masteryResult?.masteryBefore??null,masteryAfter:masteryResult?.masteryAfter??mastery,masteryDelta:masteryResult?.masteryDelta??null,mastery,dueAt:nextReview,intervalDays:masteryResult?.intervalDays??null,answeredAt:PracticeState.lastAnswerAt});emitPracticeEvent("answer",{result,feedback,mastery,schedule:{dueAt:nextReview},question,state:getPracticeState()});emitPracticeEvent("feedback",feedback);emitPracticeEvent("state",getPracticeState());return{success:true,correct:result.correct,almost:result.almost,outcome:result.correct?"correct":(result.almost?"almost":"incorrect"),score:result.score,threshold:result.threshold,feedback,mastery,masteryBefore:masteryResult?.masteryBefore??null,masteryAfter:masteryResult?.masteryAfter??mastery,masteryDelta:masteryResult?.masteryDelta??null,schedule:{dueAt:nextReview},question,state:getPracticeState()}}
-function nextPracticeQuestion(){if(!PracticeState.active)return{success:false,reason:"no-active-session"};if(!PracticeState.answered)return{success:false,reason:"answer-required"};PracticeState.currentIndex++;if(PracticeState.currentIndex>=PracticeState.questions.length){completePracticeSession();return{success:true,completed:true,state:getPracticeState()}}const q=PracticeState.questions[PracticeState.currentIndex];PracticeState.currentQuestion=q;PracticeState.currentExercise=q.exercise;PracticeState.currentWord=q.word;PracticeState.currentAnswer=null;PracticeState.answered=false;PracticeState.feedback=null;emitPracticeEvent("next",getPracticeState());emitPracticeEvent("state",getPracticeState());return{success:true,completed:false,question:q,state:getPracticeState()}}
-async function handlePracticeEnter(answer=undefined){if(!PracticeState.active)return{handled:false,reason:"no-active-session"};return PracticeState.answered?{handled:true,action:"next",result:nextPracticeQuestion()}:{handled:true,action:"check",result:await checkPracticeAnswer(answer)}}
-async function persistCompletedPracticeSession(){if(typeof saveSession!=="function")return false;const state=getPracticeState();const session={sessionId:state.sessionId,schemaVersion:3,startedAt:state.startedAt,completedAt:state.completedAt,mode:state.mode,exerciseType:state.exerciseType,questionCount:state.questionCount,selectedPackId:state.selectedPackId,vocabularySource:state.vocabularySource,selectedVocabularyIds:state.selectedVocabularyIds,answerCount:state.answerCount,correctCount:state.correctCount,incorrectCount:state.incorrectCount,results:state.results};try{await saveSession(session);return true}catch(error){console.error("Could not persist completed practice session",error);return false}}
-async function startPractice(options={}){const resolved=await resolvePracticeVocabulary(options),questionCount=practiceNormalizeCount(options.questionCount??10),exerciseType=normalizePracticeExerciseType(options.exerciseType??"meaning");if(!resolved.words.length)return{success:false,reason:"no-vocabulary",selection:resolved.selection,state:getPracticeState()};const fullVocabulary=await resolvePracticeFullVocabulary(resolved.words);window.DutchTrainerV2VocabularyPool=fullVocabulary;const questions=buildPracticeQuestions(resolved.words,questionCount,exerciseType,fullVocabulary);Object.assign(PracticeState,{active:true,completed:false,mode:options.mode??"full",exerciseType,questionCount,questions,currentIndex:0,currentQuestion:questions[0]??null,currentExercise:questions[0]?.exercise??null,currentWord:questions[0]?.word??null,currentAnswer:null,answered:false,feedback:null,startedAt:practiceNowISO(),completedAt:null,correctCount:0,incorrectCount:0,answerCount:0,selectedVocabulary:practiceClone(resolved.words),selectedVocabularyIds:resolved.words.map(practiceGetWordId),selectedPackId:resolved.selection?.packId??null,vocabularySource:resolved.selection?.source??"all",mixedTypes:exerciseType==="mixed"?buildMixedExerciseTypes(questionCount):[],results:[],sessionId:`session-${Date.now()}`,lastAnswerAt:null});emitPracticeEvent("start",getPracticeState());emitPracticeEvent("state",getPracticeState());return{success:true,question:PracticeState.currentQuestion,state:getPracticeState()}}
-function startPracticeSession(options={}){return startPractice(options)}
-function beginPractice(options={}){return startPractice(options)}
-function completePracticeSession(){if(!PracticeState.active)return getPracticeState();PracticeState.active=false;PracticeState.completed=true;PracticeState.completedAt=practiceNowISO();persistCompletedPracticeSession();emitPracticeEvent("complete",getPracticeState());emitPracticeEvent("state",getPracticeState());return getPracticeState()}
-function resetPracticeState(){Object.assign(PracticeState,{active:false,completed:false,questions:[],currentIndex:0,currentQuestion:null,currentExercise:null,currentWord:null,currentAnswer:null,answered:false,feedback:null,correctCount:0,incorrectCount:0,answerCount:0,selectedVocabulary:[],selectedVocabularyIds:[],selectedPackId:null,vocabularySource:"all",mixedTypes:[],results:[],sessionId:null,startedAt:null,completedAt:null,lastAnswerAt:null});emitPracticeEvent("state",getPracticeState())}
-function initializePractice(){return getPracticeState()}
-function initPractice(){return initializePractice()}
-window.DutchTrainerPractice={state:PracticeState,getState:getPracticeState,start:startPractice,startPractice,startPracticeSession,beginPractice,checkAnswer:checkPracticeAnswer,checkPracticeAnswer,next:nextPracticeQuestion,nextQuestion:nextPracticeQuestion,handleEnter:handlePracticeEnter,complete:completePracticeSession,reset:resetPracticeState,on:onPracticeEvent,getExpectedAnswers:getPracticeExpectedAnswers};
+const state = {
+    active: false,
+    completed: false,
+    mode: DEFAULTS.mode,
+    exerciseType: DEFAULTS.exerciseType,
+    questionCount: DEFAULTS.questionCount,
+    questions: [],
+    currentIndex: 0,
+    currentQuestion: null,
+    currentWord: null,
+    answered: false,
+    feedback: null,
+    startedAt: null,
+    completedAt: null,
+    correctCount: 0,
+    incorrectCount: 0,
+    answerCount: 0,
+    selectedVocabularyIds: [],
+    selectedPackId: null,
+    vocabularySource: 'all',
+    results: [],
+    sessionId: null
+};
+
+const listeners = {
+    start: new Set(),
+    answer: new Set(),
+    next: new Set(),
+    complete: new Set(),
+    state: new Set()
+};
+
+function clone(value) {
+    if (value === undefined || value === null) return value;
+    return JSON.parse(JSON.stringify(value));
+}
+
+function emit(type, value) {
+    for (const listener of listeners[type] || []) {
+        try { listener(clone(value)); } catch (error) { console.warn(error); }
+    }
+    return value;
+}
+
+function now() {
+    return new Date().toISOString();
+}
+
+function normalizeType(type) {
+    const value = String(type || DEFAULTS.exerciseType).trim().toLowerCase();
+    const aliases = {
+        'fill-sentence': 'fill',
+        'choose-word': 'choose',
+        'multiple-choice': 'meaning'
+    };
+    const normalized = aliases[value] || value;
+    return normalized === 'mixed' || TYPES.includes(normalized) ? normalized : DEFAULTS.exerciseType;
+}
+
+function normalizeCount(value) {
+    const count = Number(value);
+    return Number.isFinite(count)
+        ? Math.max(1, Math.min(500, Math.floor(count)))
+        : DEFAULTS.questionCount;
+}
+
+function wordId(word) {
+    return word?.id ?? word?.wordId ?? null;
+}
+
+function packId(word) {
+    return word?.packId ?? word?.wordPackId ?? word?.pack?.id ?? null;
+}
+
+function text(value) {
+    return String(value ?? '').trim();
+}
+
+function normalizedText(value) {
+    return text(value).toLocaleLowerCase('nl-NL').replace(/\s+/g, ' ');
+}
+
+function shuffle(values) {
+    const result = [...values];
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+}
+
+function answerValue(answer) {
+    return answer && typeof answer === 'object'
+        ? text(answer.value ?? answer.answer ?? answer.text ?? answer.label)
+        : text(answer);
+}
+
+function correctAnswer(question) {
+    return text(question?.exercise?.correctAnswer);
+}
+
+function isChoice(question) {
+    return question?.exercise?.inputType === 'choice' ||
+        ['meaning', 'choose'].includes(question?.type);
+}
+
+function checkAnswerValue(answer, question) {
+    const value = answerValue(answer);
+    const expected = correctAnswer(question);
+
+    if (!value) {
+        return { correct: false, almost: false, empty: true, score: 0 };
+    }
+
+    if (isChoice(question)) {
+        const correct = normalizedText(value) === normalizedText(expected);
+        return { correct, almost: false, empty: false, score: correct ? 1 : 0 };
+    }
+
+    const exact = normalizedText(value) === normalizedText(expected);
+    if (exact) return { correct: true, almost: false, empty: false, score: 1 };
+
+    const similarity = typeof DutchTrainer.similarity?.calculate === 'function'
+        ? Number(DutchTrainer.similarity.calculate(value, expected))
+        : 0;
+    const threshold = Number(DutchTrainer.similarity?.threshold ?? 0.75);
+    const almost = similarity >= threshold;
+
+    return {
+        correct: false,
+        almost,
+        empty: false,
+        score: similarity,
+        threshold,
+        expected
+    };
+}
+
+function buildQuestion(word, type, vocabulary) {
+    if (!DutchTrainer.exercises?.create) {
+        throw new Error('DutchTrainer.exercises.create is unavailable.');
+    }
+
+    const exercise = DutchTrainer.exercises.create(word, type, vocabulary);
+    return {
+        id: `${wordId(word)}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        wordId: wordId(word),
+        packId: packId(word),
+        type: normalizeType(type),
+        word: clone(word),
+        exercise: clone(exercise),
+        answered: false,
+        answer: null,
+        result: null,
+        feedback: null
+    };
+}
+
+function buildQuestions(words, count, type) {
+    const pool = shuffle(words);
+    const types = type === 'mixed'
+        ? Array.from({ length: count }, (_, i) => TYPES[i % TYPES.length])
+        : Array(count).fill(type);
+
+    return Array.from({ length: count }, (_, i) =>
+        buildQuestion(pool[i % pool.length], types[i], words)
+    );
+}
+
+async function getVocabulary(options = {}) {
+    if (Array.isArray(options.vocabulary)) {
+        return {
+            words: options.vocabulary,
+            selection: DutchTrainer.vocabulary?.getSelection?.() || { source: 'all', packId: null }
+        };
+    }
+
+    if (!DutchTrainer.vocabulary?.getSelected) {
+        throw new Error('DutchTrainer.vocabulary.getSelected is unavailable.');
+    }
+
+    return {
+        words: await DutchTrainer.vocabulary.getSelected(),
+        selection: DutchTrainer.vocabulary.getSelection?.() || { source: 'all', packId: null }
+    };
+}
+
+async function start(options = {}) {
+    const type = normalizeType(options.exerciseType ?? DEFAULTS.exerciseType);
+    const questionCount = normalizeCount(options.questionCount ?? DEFAULTS.questionCount);
+    const resolved = await getVocabulary(options);
+
+    if (!resolved.words.length) {
+        return { success: false, reason: 'no-vocabulary', state: getState() };
+    }
+
+    const questions = buildQuestions(resolved.words, questionCount, type);
+
+    Object.assign(state, {
+        active: true,
+        completed: false,
+        mode: options.mode || DEFAULTS.mode,
+        exerciseType: type,
+        questionCount,
+        questions,
+        currentIndex: 0,
+        currentQuestion: questions[0] || null,
+        currentWord: questions[0]?.word || null,
+        answered: false,
+        feedback: null,
+        startedAt: now(),
+        completedAt: null,
+        correctCount: 0,
+        incorrectCount: 0,
+        answerCount: 0,
+        selectedVocabularyIds: resolved.words.map(wordId).filter(Boolean),
+        selectedPackId: resolved.selection?.packId ?? null,
+        vocabularySource: resolved.selection?.source ?? 'all',
+        results: [],
+        sessionId: `session-${Date.now()}`
+    });
+
+    emit('start', state);
+    emit('state', state);
+    return { success: true, question: state.currentQuestion, state: getState() };
+}
+
+async function answer(answer) {
+    if (!state.active) return { success: false, reason: 'no-active-session' };
+    if (state.answered) return { success: false, reason: 'already-answered', feedback: state.feedback };
+    if (!state.currentQuestion) return { success: false, reason: 'no-question' };
+
+    const question = state.currentQuestion;
+    const result = checkAnswerValue(answer, question);
+
+    if (result.empty) return { success: false, reason: 'empty-answer', result };
+
+    const masteryBefore = Number(question.word?.mastery ?? 0);
+    let masteryResult = null;
+
+    if (DutchTrainer.mastery?.recordAnswer) {
+        masteryResult = await DutchTrainer.mastery.recordAnswer(question.word, {
+            correct: result.correct,
+            almost: result.almost,
+            score: result.score,
+            exerciseType: question.type,
+            answer: answerValue(answer),
+            userAnswer: answerValue(answer),
+            expectedAnswer: correctAnswer(question),
+            sessionId: state.sessionId
+        });
+    }
+
+    const masteryAfter = Number(masteryResult?.masteryAfter ?? question.word?.mastery ?? masteryBefore);
+    const outcome = result.correct ? 'correct' : result.almost ? 'almost' : 'incorrect';
+    const feedback = {
+        correct: result.correct,
+        almost: result.almost,
+        outcome,
+        answer: answerValue(answer),
+        correctAnswer: correctAnswer(question),
+        masteryBefore: masteryResult?.masteryBefore ?? masteryBefore,
+        masteryAfter,
+        masteryDelta: masteryResult?.masteryDelta ?? (masteryAfter - masteryBefore),
+        nextReview: masteryResult?.nextReview ?? masteryResult?.dueAt ?? null
+    };
+
+    question.answered = true;
+    question.answer = answerValue(answer);
+    question.result = result;
+    question.feedback = feedback;
+    state.answered = true;
+    state.feedback = feedback;
+    state.answerCount++;
+    if (result.correct) state.correctCount++;
+    else state.incorrectCount++;
+
+    state.results.push({
+        questionId: question.id,
+        wordId: question.wordId,
+        packId: question.packId,
+        type: question.type,
+        answer: question.answer,
+        correct: result.correct,
+        almost: result.almost,
+        outcome,
+        score: result.score,
+        masteryBefore: feedback.masteryBefore,
+        masteryAfter: feedback.masteryAfter,
+        masteryDelta: feedback.masteryDelta,
+        dueAt: feedback.nextReview,
+        answeredAt: now()
+    });
+
+    emit('answer', { result, feedback, question, state });
+    emit('state', state);
+
+    return {
+        success: true,
+        correct: result.correct,
+        almost: result.almost,
+        outcome,
+        feedback,
+        mastery: masteryAfter,
+        masteryBefore: feedback.masteryBefore,
+        masteryAfter,
+        masteryDelta: feedback.masteryDelta,
+        state: getState()
+    };
+}
+
+async function next() {
+    if (!state.active) return { success: false, reason: 'no-active-session' };
+    if (!state.answered) return { success: false, reason: 'answer-required' };
+
+    state.currentIndex++;
+
+    if (state.currentIndex >= state.questions.length) {
+        return finish();
+    }
+
+    state.currentQuestion = state.questions[state.currentIndex];
+    state.currentWord = state.currentQuestion.word;
+    state.answered = false;
+    state.feedback = null;
+
+    emit('next', state);
+    emit('state', state);
+    return { success: true, completed: false, question: state.currentQuestion, state: getState() };
+}
+
+async function finish() {
+    if (!state.active) return getState();
+
+    state.active = false;
+    state.completed = true;
+    state.completedAt = now();
+
+    const session = {
+        sessionId: state.sessionId,
+        schemaVersion: 3,
+        startedAt: state.startedAt,
+        completedAt: state.completedAt,
+        mode: state.mode,
+        exerciseType: state.exerciseType,
+        questionCount: state.questionCount,
+        selectedPackId: state.selectedPackId,
+        vocabularySource: state.vocabularySource,
+        selectedVocabularyIds: state.selectedVocabularyIds,
+        answerCount: state.answerCount,
+        correctCount: state.correctCount,
+        incorrectCount: state.incorrectCount,
+        results: state.results
+    };
+
+    if (DutchTrainer.db?.saveSession) {
+        await DutchTrainer.db.saveSession(session);
+    }
+
+    emit('complete', state);
+    emit('state', state);
+    return { success: true, completed: true, session, state: getState() };
+}
+
+function reset() {
+    Object.assign(state, {
+        active: false,
+        completed: false,
+        questions: [],
+        currentIndex: 0,
+        currentQuestion: null,
+        currentWord: null,
+        answered: false,
+        feedback: null,
+        startedAt: null,
+        completedAt: null,
+        correctCount: 0,
+        incorrectCount: 0,
+        answerCount: 0,
+        selectedVocabularyIds: [],
+        selectedPackId: null,
+        vocabularySource: 'all',
+        results: [],
+        sessionId: null
+    });
+    emit('state', state);
+}
+
+function getState() {
+    return clone(state);
+}
+
+function on(type, listener) {
+    if (!listeners[type] || typeof listener !== 'function') return () => {};
+    listeners[type].add(listener);
+    return () => listeners[type].delete(listener);
+}
+
+DutchTrainer.practice = {
+    TYPES,
+    DEFAULTS,
+    state,
+    getState,
+    start,
+    answer,
+    next,
+    finish,
+    reset,
+    on
+};
