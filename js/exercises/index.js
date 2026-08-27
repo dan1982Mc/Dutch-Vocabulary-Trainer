@@ -20,6 +20,45 @@ function list() {
     return Object.keys(registry);
 }
 
+function create(word, name, vocabulary = []) {
+    const type = String(name || 'meaning').trim().toLowerCase();
+    const exercise = get(type);
+    if (!exercise) throw new Error(`Unknown exercise type: ${type}`);
+
+    let options = [];
+    if (type === 'choose') {
+        const answer = word.english || word.meaning || '';
+        const distractors = vocabulary
+            .filter(item => item !== word)
+            .map(item => item.english || item.meaning || '')
+            .filter(Boolean)
+            .filter(value => normalize(value) !== normalize(answer));
+        options = [answer, ...shuffle(distractors).slice(0, 3)];
+        options = shuffle(options);
+    }
+
+    const generated = exercise.generate(word, options, vocabulary);
+    return {
+        ...generated,
+        type: generated.type || type,
+        label: generated.label || exercise.label || type,
+        correctAnswer: generated.correctAnswer ?? generated.answer ?? ''
+    };
+}
+
+function shuffle(values) {
+    const result = [...values];
+    for (let i = result.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+}
+
+function normalize(value) {
+    return String(value ?? '').trim().toLowerCase();
+}
+
 register('meaning', {
     label: 'Meaning',
     generate(word) {
@@ -50,12 +89,9 @@ register('recall', {
     }
 });
 
-function normalize(value) {
-    return String(value ?? '').trim().toLowerCase();
-}
-
-DutchTrainer.exercises = Object.freeze({
+DutchTrainer.exercises = {
     register,
     get,
-    list
-});
+    list,
+    create
+};
