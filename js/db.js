@@ -45,6 +45,7 @@ window.getSetting=getSetting;
 window.saveSession=saveSession;
 window.getSessions=getSessions;
 window.deleteSession=deleteSession;
+window.DutchTrainerHistory={getSessions};
 window.calculatePackStats=calculatePackStats;
 window.exportDatabaseData=exportDatabaseData;
 window.importDatabaseData=importDatabaseData;
