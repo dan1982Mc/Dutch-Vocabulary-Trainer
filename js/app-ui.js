@@ -8,7 +8,7 @@
     const $ = id => document.getElementById(id);
     const screens = ['home','dashboard','packs','settings','practice','complete','history'];
     const ids = { home:'homeScreen', dashboard:'dashboardScreen', packs:'packsScreen', settings:'settingsScreen', practice:'practiceScreen', complete:'completeScreen', history:'historyScreen' };
-    let selectedPackId = 'all';
+    let selectedPackId = localStorage.getItem('v24.selectedPackId') || 'all';
 
     function nav(name) {
         screens.forEach(s => $(ids[s])?.classList.toggle('active', s === name));
@@ -32,23 +32,22 @@
     }
 
     async function renderPacks() {
-        const list=$('packsList');if(!list)return;
+        const list=$('packsList'), selector=$('v24PackSelector');if(!list||!selector)return;
         const ws=await words(),groups=new Map();
         ws.forEach(w=>{const id=String(w.packId||'default');if(!groups.has(id))groups.set(id,[]);groups.get(id).push(w);});
-        list.innerHTML='';
-        const selector=document.createElement('select');selector.id='v24PackSelector';
         selector.innerHTML='<option value="all">All Vocabulary</option>';
         groups.forEach((items,packId)=>{const option=document.createElement('option');option.value=packId;option.textContent=`${packId} (${items.length})`;selector.append(option);});
-        selector.value=groups.has(selectedPackId)||selectedPackId==='all'?selectedPackId:'all';selectedPackId=selector.value;
-        selector.addEventListener('change',async()=>{selectedPackId=selector.value;await renderPacks();await renderDashboard();});
-        const label=document.createElement('label');label.textContent='Active vocabulary pack';label.append(document.createElement('br'),selector);list.append(label);
+        if(!groups.has(selectedPackId)&&selectedPackId!=='all') selectedPackId='all';
+        selector.value=selectedPackId;
+        selector.onchange=async()=>{selectedPackId=selector.value;localStorage.setItem('v24.selectedPackId',selectedPackId);await renderPacks();await renderDashboard();};
+        list.innerHTML='';
         if(!groups.size){const empty=document.createElement('p');empty.textContent='No vocabulary packs installed.';list.append(empty);return;}
         groups.forEach((items,packId)=>{
             const card=document.createElement('div');card.className='card pack-card';if(packId===selectedPackId)card.classList.add('active');
             const title=document.createElement('strong');title.textContent=packId==='default'?'Default Vocabulary':packId;
             const p=document.createElement('p');p.textContent=`${items.length} words`;
             const use=document.createElement('button');use.type='button';use.className='secondary';use.textContent=packId===selectedPackId?'Selected':'Use Pack';use.disabled=packId===selectedPackId;
-            use.addEventListener('click',async e=>{e.preventDefault();e.stopPropagation();selectedPackId=packId;await renderPacks();await renderDashboard();});
+            use.addEventListener('click',async e=>{e.preventDefault();e.stopPropagation();selectedPackId=packId;localStorage.setItem('v24.selectedPackId',selectedPackId);await renderPacks();await renderDashboard();});
             card.append(title,p,use);list.append(card);
         });
     }
