@@ -4,19 +4,40 @@
 <body>
 <h1>V2.4 Core Verification</h1>
 <p>Open DevTools Console for results.</p>
-<script type="module" src="../js/version.js"></script>
-<script type="module" src="../js/db.js"></script>
-<script type="module" src="../js/storage.js"></script>
-<script type="module" src="../js/packs.js"></script>
-<script type="module" src="../js/selection.js"></script>
-<script type="module" src="../js/vocabulary.js"></script>
-<script type="module" src="../js/exercises/index.js"></script>
-<script type="module" src="../js/exercises/fill.js"></script>
-<script type="module" src="../js/exercises/production.js"></script>
-<script type="module" src="../js/mastery.js"></script>
-<script type="module" src="../js/history.js"></script>
-<script type="module" src="../js/scheduler-v2.js"></script>
-<script type="module" src="../js/practice.js"></script>
-<script type="module" src="./v2.4-core-test.js"></script>
+<script type="module">
+(async () => {
+    const files = [
+        '../js/version.js',
+        '../js/db.js',
+        '../js/storage.js',
+        '../js/packs.js',
+        '../js/selection.js',
+        '../js/vocabulary.js',
+        '../js/exercises/index.js',
+        '../js/exercises/fill.js',
+        '../js/exercises/production.js',
+        '../js/mastery.js',
+        '../js/history.js',
+        '../js/scheduler-v2.js',
+        '../js/practice.js'
+    ];
+
+    for (const file of files) {
+        try {
+            await import(file);
+        } catch (error) {
+            console.error(`V2.4 module failed: ${file}`, error);
+            window.V2_4_MODULE_ERROR = { file, message: error?.message || String(error) };
+            return;
+        }
+    }
+
+    const script = document.createElement('script');
+    script.src = './v2.4-core-test.js';
+    script.onload = () => console.log('V2.4 verification test loaded.');
+    script.onerror = () => console.error('Could not load v2.4-core-test.js');
+    document.body.appendChild(script);
+})();
+</script>
 </body>
 </html>
