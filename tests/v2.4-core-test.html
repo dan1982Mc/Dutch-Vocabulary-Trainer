@@ -6,37 +6,18 @@
 <p>Open DevTools Console for results.</p>
 <script type="module">
 (async () => {
-    const files = [
-        '../js/version.js',
-        '../js/db.js',
-        '../js/storage.js',
-        '../js/packs.js',
-        '../js/selection.js',
-        '../js/vocabulary.js',
-        '../js/exercises/index.js',
-        '../js/exercises/fill.js',
-        '../js/exercises/production.js',
-        '../js/mastery.js',
-        '../js/history.js',
-        '../js/scheduler-v2.js',
-        '../js/practice.js'
-    ];
-
-    for (const file of files) {
-        try {
-            await import(file);
-        } catch (error) {
-            console.error(`V2.4 module failed: ${file}`, error);
-            window.V2_4_MODULE_ERROR = { file, message: error?.message || String(error) };
-            return;
-        }
+    try {
+        await import('../js/app.js');
+        await window.DutchTrainer.ready;
+        const script = document.createElement('script');
+        script.src = './v2.4-core-test.js';
+        script.onload = () => console.log('V2.4 verification test loaded.');
+        script.onerror = () => console.error('Could not load v2.4-core-test.js');
+        document.body.appendChild(script);
+    } catch (error) {
+        console.error('V2.4 app bootstrap failed:', error);
+        window.V2_4_MODULE_ERROR = { file: 'js/app.js', message: error?.message || String(error) };
     }
-
-    const script = document.createElement('script');
-    script.src = './v2.4-core-test.js';
-    script.onload = () => console.log('V2.4 verification test loaded.');
-    script.onerror = () => console.error('Could not load v2.4-core-test.js');
-    document.body.appendChild(script);
 })();
 </script>
 </body>
