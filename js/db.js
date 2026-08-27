@@ -28,8 +28,26 @@ async function deleteSession(sessionId){return requestPromise(transaction(STORES
 async function exportDatabaseData(){return{exportVersion:3,appVersion:window.DutchTrainerVersion?.app||'2.3.0',exportedAt:new Date().toISOString(),vocabulary:await getAllWords(),packs:await getAllPackRecords(),sessions:await getSessions(),settings:{practiceSettings:await getSetting('practiceSettings',null),uiSettings:await getSetting('uiSettings',null)}};}
 async function importDatabaseData(snapshot,{replace=false}={}){if(!snapshot||typeof snapshot!=='object')throw new Error('Invalid backup file.');if(!Array.isArray(snapshot.vocabulary)||!Array.isArray(snapshot.packs))throw new Error('Backup is missing vocabulary or pack data.');if(replace){const tx=db.transaction([STORES.vocabulary,STORES.packs,STORES.sessions],'readwrite');tx.objectStore(STORES.vocabulary).clear();tx.objectStore(STORES.packs).clear();tx.objectStore(STORES.sessions).clear();await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error);});}await saveWords(snapshot.vocabulary);for(const p of snapshot.packs)await savePackRecord(p);for(const s of(snapshot.sessions||[]))await saveSession(s);if(snapshot.settings?.practiceSettings!==undefined)await setSetting('practiceSettings',snapshot.settings.practiceSettings);if(snapshot.settings?.uiSettings!==undefined)await setSetting('uiSettings',snapshot.settings.uiSettings);return{words:snapshot.vocabulary.length,packs:snapshot.packs.length,sessions:(snapshot.sessions||[]).length};}
 async function calculatePackStats(packId){const words=(await getAllWords()).filter(w=>String(w.packId||'')===String(packId));const total=words.length;return{total,learned:words.filter(w=>Number(w.mastery??0)>=90).length,weak:words.filter(w=>Number(w.mastery??0)>0&&Number(w.mastery??0)<40).length,due:words.filter(w=>{const d=w.dueAt??w.nextReview;return d&&new Date(d).getTime()<=Date.now();}).length,new:words.filter(w=>w.isNew===true).length,averageMastery:total?Math.round(words.reduce((s,w)=>s+Number(w.mastery??0),0)/total):0};}
-async function purgeSystemAndLegacyPacks(){try{const packs=await getAllPackRecords();const words=await getAllWords();for(const p of packs){const id=String(p.packId||'').toLowerCase();const name=String(p.name||'').trim().toLowerCase();const type=String(p.type||'').toLowerCase();if(id==='legacy'||id==='default'||type==='legacy'||name.includes('legacy')||name==='default vocab'||name==='default vocabulary'){for(const w of words)if(String(w.packId||'').toLowerCase()===String(p.packId||''))await deleteWord(w.id);await deletePackRecord(p.packId);}}}catch(e){console.warn('Could not purge old system packs',e);}}
-async function ensureLegacyPack(){return purgeSystemAndLegacyPacks();}
-async function initializeDB(){await initDatabase();await ensureLegacyPack();console.log('Dutch Vocabulary Trainer V2.3 database ready.');}
-window.DutchTrainerDB={init:initDatabase,export:exportDatabaseData,import:importDatabaseData,version:DB_VERSION};window.DutchTrainerDatabaseReady=initDatabase();
+async function initializeDB(){return initDatabase();}
+window.initDatabase=initDatabase;
+window.initializeDB=initializeDB;
+window.getWord=getWord;
+window.saveWord=saveWord;
+window.saveWords=saveWords;
+window.getAllWords=getAllWords;
+window.deleteWord=deleteWord;
+window.savePackRecord=savePackRecord;
+window.getPackRecord=getPackRecord;
+window.getAllPackRecords=getAllPackRecords;
+window.deletePackRecord=deletePackRecord;
+window.setSetting=setSetting;
+window.getSetting=getSetting;
+window.saveSession=saveSession;
+window.getSessions=getSessions;
+window.deleteSession=deleteSession;
+window.calculatePackStats=calculatePackStats;
+window.exportDatabaseData=exportDatabaseData;
+window.importDatabaseData=importDatabaseData;
+window.DutchTrainerDB={init:initDatabase,export:exportDatabaseData,import:importDatabaseData,version:DB_VERSION};
+window.DutchTrainerDatabaseReady=initDatabase();
 })();
