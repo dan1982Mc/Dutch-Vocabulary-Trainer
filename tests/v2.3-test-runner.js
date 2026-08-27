@@ -15,5 +15,20 @@ check('import enforces word limit',()=>{has('js/import.js',/maxWords\s*:\s*10000
 check('import normalizes vocabulary to schema 3 through DB',()=>{has('js/import.js',/normalize\(w,incomingPack\.packId,i\)/);has('js/import.js',/await\s+saveWords\(merged\)/);has('js/db.js',/schemaVersion\s*[:=]\s*3/);});
 check('Packs UI owns refresh renderer',()=>{has('js/packs-ui.js',/DutchTrainerPacksUI\s*=\s*\{\s*refresh/);});
 check('Packs navigation uses refresh',()=>{const t=read('js/ui.js');if(!/name\s*===\s*['"]packs['"]\)window\.DutchTrainerPacksUI\?\.refresh\?\./.test(t))throw Error('nav packs refresh missing');if(!/async function setActivePack\(\)[\s\S]*?DutchTrainerPacksUI\?\.refresh\?\./.test(t))throw Error('active pack refresh missing');});
-check('legacy history persistence is still explicitly tracked',()=>{const t=read('js/ui.js');if(!/v2\.practiceHistory/.test(t))throw Error('legacy marker absent; review cleanup issue #1');});
+check('ui.js no longer references legacy history',()=>{
+    const t=read('js/ui.js');
+    if(/v2\.practiceHistory/.test(t))
+        throw Error('legacy localStorage history still present');
+});
+check('ui.js uses DutchTrainerHistory',()=>{
+    has('js/ui.js',/DutchTrainerHistory/);
+});
+check('app-bootstrap.js has no history compatibility bridge',()=>{
+    const t=read('js/app-bootstrap.js');
+    if(/installHistoryBridge|v2\.practiceHistory|Storage\.prototype/.test(t))
+        throw Error('legacy history compatibility bridge still present');
+});
+check('ui.js uses canonical session API',()=>{
+    has('js/ui.js',/DutchTrainerHistory\?\.getSessions/);
+});
 console.log(`\n${pass} passed, ${fail} failed`);process.exitCode=fail?1:0;
