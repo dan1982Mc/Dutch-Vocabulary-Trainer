@@ -1,7 +1,6 @@
 /* Dutch Vocabulary Trainer V2.4 Stable Core self-tests.
  * Run from repository root: node tests/v2.4-self-tests.js
- * These are dependency-free static/contract tests. Browser behavior is covered by
- * tests/v2.4-browser-smoke.cjs in CI.
+ * Dependency-free contract tests. Browser runtime behavior is covered by CI smoke tests.
  */
 'use strict';
 const fs=require('fs');
@@ -17,14 +16,18 @@ const appFiles=['js/version.js','js/db.js','js/storage.js','js/similarity.js','j
 check('all application script files exist',()=>appFiles.forEach(file=>{if(!fs.existsSync(path.join(root,file)))throw new Error(file);}));
 check('database schema remains version 3',()=>has('js/db.js',/const DB_VERSION\s*=\s*3/));
 check('database exposes vocabulary, pack and session persistence',()=>{has('js/db.js',/getAllWords/);has('js/db.js',/savePackRecord/);has('js/db.js',/getAllPackRecords/);has('js/db.js',/saveSession/);has('js/db.js',/getSessions/);});
+check('database exposes backup and restore APIs',()=>{has('js/db.js',/exportDatabaseData/);has('js/db.js',/importDatabaseData/);has('js/db.js',/DutchTrainerDB=\{/);});
 check('backup API uses canonical database export/import',()=>{has('js/backup.js',/DutchTrainerDB\?\.export/);has('js/backup.js',/DutchTrainerDB\.import/);});
-check('pack manager exposes canonical operations',()=>{has('js/packs.js',/DutchTrainerPacks\s*=\s*\{/);has('js/packs.js',/getAllPacks/);has('js/packs.js',/createPack/);has('js/packs.js',/deletePack/);});
+check('pack manager exposes canonical operations',()=>{has('js/packs.js',/DutchTrainerPacks\s*=\s*\{/);['getAllPacks','getPack','savePack','createPack','ensurePack','updatePack','deletePack','removePackWords','assignWordToPack'].forEach(fn=>has('js/packs.js',new RegExp(fn)));});
 check('Packs UI owns its refresh renderer',()=>{has('js/packs-ui.js',/DutchTrainerPacksUI\s*=\s*\{/);has('js/packs-ui.js',/refresh/);});
 check('navigation refreshes Packs through Packs UI',()=>{const t=read('js/ui.js');if(!/name==='packs'\)window\.DutchTrainerPacksUI\?\.refresh\?\./.test(t))throw new Error('packs navigation refresh missing');if(!/setActivePack[\s\S]*?DutchTrainerPacksUI\?\.refresh\?\./.test(t))throw new Error('active-pack refresh missing');});
 check('no legacy history compatibility bridge remains',()=>{no('js/ui.js',/v2\.practiceHistory/);no('js/app-bootstrap.js',/installHistoryBridge|v2\.practiceHistory|Storage\.prototype/);});
 check('canonical history API is present',()=>has('js/db.js',/DutchTrainerHistory=\{getSessions\}/));
+check('mastery engine exposes canonical API',()=>{has('js/mastery.js',/DutchTrainerMastery=\{/);['updateWordAfterAnswer','getCurrentMastery','getMasteryLevel','calculateVocabularyStats','calculateSkillStats','calculatePackStatistics','previewMasteryChange'].forEach(fn=>has('js/mastery.js',new RegExp(fn)));});
+check('mastery thresholds and exercise types are defined',()=>{has('js/mastery.js',/weakThreshold:\s*40/);has('js/mastery.js',/masteredThreshold:\s*90/);['meaning','recall','fill','choose','production'].forEach(type=>has('js/mastery.js',new RegExp(`"${type}"`)));});
+check('scheduler exposes core scheduling implementation',()=>{const t=read('js/scheduler.js');['schedulerGetMastery','schedulerGetDueDate','schedulerGetInterval','schedulerGetAttempts','schedulerGetCorrect','schedulerAddDays','schedulerAddHours'].forEach(fn=>{if(!new RegExp(`function\\s+${fn}\\s*\\(`).test(t))throw new Error(`${fn} missing`);});if(!/SchedulerConfig/.test(t))throw new Error('SchedulerConfig missing');});
 check('exercise engine exposes all five exercise types',()=>{const t=read('js/exercises.js');['meaning','recall','fill','choose','production'].forEach(type=>{if(!new RegExp(`${type}:'${type}'`).test(t))throw new Error(`${type} missing`);});has('js/exercises.js',/DutchTrainerExercises/);});
-check('practice engine exposes start and answer flow',()=>{const t=read('js/practice.js');has('js/practice.js',/DutchTrainerPractice/);if(!/startPractice/.test(t))throw new Error('startPractice missing');if(!/checkAnswer/.test(t))throw new Error('checkAnswer missing');if(!/nextQuestion/.test(t))throw new Error('nextQuestion missing');});
+check('practice engine exposes start and answer flow',()=>{const t=read('js/practice.js');has('js/practice.js',/DutchTrainerPractice/);['startPractice','checkAnswer','nextQuestion'].forEach(fn=>has('js/practice.js',new RegExp(fn)));});
 check('selection manager persists vocabulary selection',()=>{has('js/selection.js',/localStorage\.setItem/);has('js/selection.js',/selectVocabularyPack/);has('js/selection.js',/selectAllVocabulary/);});
 check('import validation and limits remain enforced',()=>{has('js/import.js',/validate/);has('js/import.js',/maxWords\s*:\s*10000/);});
 check('UI contains every smoke-test navigation target',()=>{const t=read('index.html');['homeScreen','dashboardScreen','packsScreen','settingsScreen','historyScreen','practiceScreen'].forEach(id=>{if(!new RegExp(`id="${id}"`).test(t))throw new Error(`${id} missing`);});});
