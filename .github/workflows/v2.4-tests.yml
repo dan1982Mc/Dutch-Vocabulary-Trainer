@@ -21,8 +21,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Run V2.4 self-tests
+      - name: Run V2.4 contract self-tests
         run: node tests/v2.4-self-tests.js
+      - name: Run V2.4 core unit tests
+        run: node tests/v2.4-core-unit.test.cjs
 
   browser-smoke:
     name: Browser smoke test
