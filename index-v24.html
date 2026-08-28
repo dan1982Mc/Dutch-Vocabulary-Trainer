@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dutch Vocabulary Trainer V2.4</title>
+  <link rel="stylesheet" href="css/style.css?v=2.4.0">
+</head>
+<body>
+  <main id="app">
+    <section id="homeScreen" class="screen active">
+      <div class="card centered">
+        <h1>Dutch Vocabulary Trainer</h1>
+        <p>V2.4 Stable Core</p>
+        <div class="home-actions">
+          <button id="practiceSetupBtn" class="primary">Practice</button>
+          <button id="dashboardBtn">Dashboard</button>
+          <button id="packsBtn">Word Packs</button>
+          <button id="historyBtn">History</button>
+        </div>
+      </div>
+    </section>
+    <section id="dashboardScreen" class="screen"><div class="screen-header"><h2>Dashboard</h2><button class="backBtn">← Home</button></div><div id="dashboardContent" class="card"></div></section>
+    <section id="packsScreen" class="screen"><div class="screen-header"><h2>Word Packs</h2><button class="backBtn">← Home</button></div><div id="packsContent" class="card"></div></section>
+    <section id="historyScreen" class="screen"><div class="screen-header"><h2>Practice History</h2><button class="backBtn">← Home</button></div><div id="historyContent" class="card">No practice history yet.</div></section>
+    <section id="practiceScreen" class="screen"><div class="screen-header"><h2>Practice</h2><button id="exitPracticeBtn">Exit</button></div><div id="questionCard" class="card"><div id="exerciseBadge"></div><h3 id="questionPrompt"></h3><p id="questionContext"></p><div id="answerArea"></div><div id="feedbackArea"></div></div><div class="practice-actions"><button id="checkBtn" class="primary">Check Answer</button><button id="nextBtn" class="secondary hidden">Next Question</button></div></section>
+    <section id="completeScreen" class="screen"><div class="card centered"><h2>Session Complete</h2><div id="sessionScore"></div><div id="sessionSummary"></div><button id="practiceAgainBtn" class="primary">Practice Again</button><button id="backDashboardBtn" class="secondary">Back to Dashboard</button></div></section>
+  </main>
+  <script src="js/db.js"></script>
+  <script src="js/vocabulary.js"></script>
+  <script src="js/exercises/index.js"></script>
+  <script src="js/exercises/choice.js"></script>
+  <script src="js/exercises/fill.js"></script>
+  <script src="js/exercises/production.js"></script>
+  <script src="js/mastery.js"></script>
+  <script src="js/scheduler-v2.js"></script>
+  <script src="js/history.js"></script>
+  <script src="js/practice.js"></script>
+  <script src="js/app.js?v=2.4.0"></script>
+  <script src="js/app-ui.js?v=2.4.0"></script>
+</body>
+</html>
