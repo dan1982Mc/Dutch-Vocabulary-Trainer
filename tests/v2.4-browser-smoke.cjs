@@ -6,13 +6,20 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 async function active(page, id) { return page.locator(`#${id}`).evaluate(el => el.classList.contains('active')); }
 async function waitForApp(page) {
   try {
-    await page.waitForFunction(() => window.DutchTrainerApp?.state?.initialized === true, { timeout: 15000 });
+    await page.waitForFunction(() => Boolean(window.DutchTrainer?.ready && window.DutchTrainerUI), { timeout: 15000 });
+    await page.evaluate(() => window.DutchTrainer.ready);
   } catch (error) {
     const state = await page.evaluate(() => ({
-      app: !!window.DutchTrainerApp,
-      initialized: window.DutchTrainerApp?.state?.initialized ?? null,
-      initializing: window.DutchTrainerApp?.state?.initializing ?? null,
-      lastError: window.DutchTrainerApp?.state?.lastError ?? null,
+      trainer: !!window.DutchTrainer,
+      ready: !!window.DutchTrainer?.ready,
+      ui: !!window.DutchTrainerUI,
+      namespaces: {
+        vocabulary: !!window.DutchTrainer?.vocabulary,
+        exercises: !!window.DutchTrainer?.exercises,
+        scheduler: !!window.DutchTrainer?.scheduler,
+        practice: !!window.DutchTrainer?.practice,
+        history: !!window.DutchTrainer?.history
+      },
       activeScreens: [...document.querySelectorAll('.screen.active')].map(e => e.id),
       body: document.body.innerText.slice(0, 1000)
     }));
@@ -23,21 +30,7 @@ async function navigate(page, buttonId, screenId, label) {
   const button = page.locator(`#${buttonId}`);
   await button.waitFor({ state: 'visible', timeout: 5000 });
   await button.click();
-  try {
-    await page.locator(`#${screenId}`).waitFor({ state: 'visible', timeout: 5000 });
-  } catch (error) {
-    const state = await page.evaluate(({ buttonId, screenId }) => ({
-      button: document.getElementById(buttonId)?.outerHTML,
-      activeScreens: [...document.querySelectorAll('.screen.active')].map(e => e.id),
-      targetClasses: document.getElementById(screenId)?.className ?? null,
-      hash: location.hash,
-      uiBound: window.__DutchTrainerUIBound ?? null,
-      navigateToAvailable: typeof window.navigateTo === 'function',
-      appInitialized: window.DutchTrainerApp?.state?.initialized ?? null,
-      appError: window.DutchTrainerApp?.state?.lastError ?? null
-    }), { buttonId, screenId });
-    throw new Error(`${label} navigation failed: ${JSON.stringify(state)}`);
-  }
+  await page.locator(`#${screenId}`).waitFor({ state: 'visible', timeout: 5000 });
   assert(await active(page, screenId), `${label} navigation failed`);
 }
 (async () => {
@@ -53,7 +46,7 @@ async function navigate(page, buttonId, screenId, label) {
     assert(await page.locator('#app').count() === 1, 'Application root is missing');
     await navigate(page, 'dashboardBtn', 'dashboardScreen', 'Dashboard');
     await navigate(page, 'packsBtn', 'packsScreen', 'Word Packs');
-    assert(await page.locator('#activePackSelector').count() === 1, 'Active pack selector is missing');
+    assert(await page.locator('#v24PackSelector').count() === 1, 'Active pack selector is missing');
     assert(await page.locator('#packsList').count() === 1, 'Installed Packs container is missing');
     await navigate(page, 'settingsBtn', 'settingsScreen', 'Settings');
     await navigate(page, 'historyBtn', 'historyScreen', 'History');
