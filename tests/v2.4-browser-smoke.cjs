@@ -11,7 +11,9 @@ async function waitForApp(page) {
     const state = await page.evaluate(() => ({
       app: !!window.DutchTrainerApp,
       initialized: window.DutchTrainerApp?.state?.initialized ?? null,
+      initializing: window.DutchTrainerApp?.state?.initializing ?? null,
       lastError: window.DutchTrainerApp?.state?.lastError ?? null,
+      activeScreens: [...document.querySelectorAll('.screen.active')].map(e => e.id),
       body: document.body.innerText.slice(0, 1000)
     }));
     throw new Error(`Application did not initialize: ${JSON.stringify(state)}`);
@@ -21,7 +23,21 @@ async function navigate(page, buttonId, screenId, label) {
   const button = page.locator(`#${buttonId}`);
   await button.waitFor({ state: 'visible', timeout: 5000 });
   await button.click();
-  await page.waitForFunction(id => document.getElementById(id)?.classList.contains('active'), screenId, { timeout: 5000 });
+  try {
+    await page.locator(`#${screenId}`).waitFor({ state: 'visible', timeout: 5000 });
+  } catch (error) {
+    const state = await page.evaluate(({ buttonId, screenId }) => ({
+      button: document.getElementById(buttonId)?.outerHTML,
+      activeScreens: [...document.querySelectorAll('.screen.active')].map(e => e.id),
+      targetClasses: document.getElementById(screenId)?.className ?? null,
+      hash: location.hash,
+      uiBound: window.__DutchTrainerUIBound ?? null,
+      navigateToAvailable: typeof window.navigateTo === 'function',
+      appInitialized: window.DutchTrainerApp?.state?.initialized ?? null,
+      appError: window.DutchTrainerApp?.state?.lastError ?? null
+    }), { buttonId, screenId });
+    throw new Error(`${label} navigation failed: ${JSON.stringify(state)}`);
+  }
   assert(await active(page, screenId), `${label} navigation failed`);
 }
 (async () => {
@@ -42,9 +58,9 @@ async function navigate(page, buttonId, screenId, label) {
     await navigate(page, 'settingsBtn', 'settingsScreen', 'Settings');
     await navigate(page, 'historyBtn', 'historyScreen', 'History');
     await page.locator('#practiceSetupBtn').click();
-    await page.waitForFunction(() => !document.getElementById('practiceModal')?.classList.contains('hidden'), null, { timeout: 5000 });
+    await page.locator('#practiceModal').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#closePracticeModal').click();
-    await page.waitForFunction(() => document.getElementById('practiceModal')?.classList.contains('hidden'), null, { timeout: 5000 });
+    await page.locator('#practiceModal').waitFor({ state: 'hidden', timeout: 5000 });
     await navigate(page, 'dashboardBtn', 'dashboardScreen', 'Return to Dashboard');
     if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(' | ')}`);
     console.log('PASS V2.4 browser smoke: app initializes and all primary screens/navigation work');
