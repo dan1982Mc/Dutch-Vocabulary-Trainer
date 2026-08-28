@@ -16,17 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - name: Run V2.4 contract self-tests
         run: node tests/v2.4-self-tests.js
       - name: Run V2.4 core unit tests
         run: node tests/v2.4-core-unit.test.cjs
-      - name: Run V2.4 Practice regression tests
-        run: node tests/v2.4-practice-regression.cjs
 
   browser-runtime:
     name: Browser runtime self-tests
@@ -34,17 +32,19 @@ jobs:
     needs: self-tests
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - name: Install Playwright for CI
         run: npm install --no-save playwright@1.55.0
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Start local web server
         run: python3 -m http.server 8000 > /tmp/dvt-http.log 2>&1 &
+      - name: Run V2.4 Practice regression tests
+        run: node tests/v2.4-practice-regression.cjs
       - name: Run V2.4 browser runtime self-tests
         run: node tests/v2.4-runtime-tests.cjs
       - name: Show server log on failure
@@ -57,11 +57,11 @@ jobs:
     needs: browser-runtime
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
       - name: Install Playwright for CI
         run: npm install --no-save playwright@1.55.0
       - name: Install Chromium
