@@ -44,7 +44,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
       const state1 = api.practice.getState();
       out.counterStart = state1?.currentIndex === 0 && state1?.questionCount === 5 && state1?.questions?.length === 5;
       const q = state1?.questions?.[state1.currentIndex];
-      assert(q?.exercise?.correctAnswer, 'Practice question has no correct answer');
+      if (!q?.exercise?.correctAnswer) throw new Error('Practice question has no correct answer');
       const answer = await api.practice.answer(q.exercise.correctAnswer);
       out.answer = answer?.success === true && answer?.correct === true && answer?.feedback;
       const next = await api.practice.next();
