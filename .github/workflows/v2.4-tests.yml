@@ -25,6 +25,8 @@ jobs:
         run: node tests/v2.4-self-tests.js
       - name: Run V2.4 core unit tests
         run: node tests/v2.4-core-unit.test.cjs
+      - name: Run V2.4 Practice regression tests
+        run: node tests/v2.4-practice-regression.cjs
 
   browser-runtime:
     name: Browser runtime self-tests
