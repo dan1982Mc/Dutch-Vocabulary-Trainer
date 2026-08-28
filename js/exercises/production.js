@@ -1,0 +1,3 @@
+'use strict';
+
+const DutchTrainer=window.DutchTrainer||(window.DutchTrainer={});const exercises=DutchTrainer.exercises;const n=v=>String(v??'').trim().toLowerCase();const terms=w=>{const t=[w?.dutch,w?.word];if(w?.forms&&typeof w.forms==='object')Object.values(w.forms).forEach(v=>Array.isArray(v)?t.push(...v):typeof v==='string'&&t.push(v));return[...new Set(t.filter(Boolean).map(n))]};exercises.register('production',{label:'Production',generate(w){const a=w.dutch||w.word||'';return{type:'production',prompt:'Write one natural Dutch sentence using this word.',context:a,answer:a,correctAnswer:a}},check(q,a){const s=n(a),t=n(q.answer);return!!s&&s.length>t.length&&terms(q.word||{}).some(x=>s.includes(x))}});

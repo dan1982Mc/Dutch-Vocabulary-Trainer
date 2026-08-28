@@ -1,26 +1,119 @@
-/* Dutch Vocabulary Trainer V2.3 - validated Word Pack import/merge. */
-const IMPORT_VERSION="2.3.0";
-const IMPORT_LIMITS={maxFileSize:10*1024*1024,maxWords:10000,maxExercisesPerWord:100};
-const ImportState={initialized:false,importing:false,lastResult:null,lastError:null};
-const text=v=>v==null?"":String(v).trim();
-const id=v=>text(v)||null;
-function slug(v){return text(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")}
-function meta(data){return data?.metadata||data?.pack||data?.wordPack||{}}
-function wordsOf(data){if(Array.isArray(data))return data;return [data?.words,data?.vocabulary,data?.terms,data?.entries,data?.items,data?.data?.words,data?.data?.vocabulary].find(Array.isArray)||[]}
-function validate(data){const errors=[];if(!data||typeof data!=="object"||Array.isArray(data))errors.push("The imported file must contain a Word Pack JSON object.");const ws=wordsOf(data);if(!ws.length)errors.push("No vocabulary words were found in the imported file.");if(ws.length>IMPORT_LIMITS.maxWords)errors.push(`The Word Pack contains ${ws.length} words. Maximum is ${IMPORT_LIMITS.maxWords}.`);const seen=new Set();ws.forEach((w,i)=>{if(!w||typeof w!=="object"){errors.push(`Word ${i+1} is not an object.`);return}const nl=text(w.dutch??w.word??w.term??w.text),en=text(w.english??w.meaning??w.translation??w.definition);if(!nl)errors.push(`Word ${i+1} is missing its Dutch word.`);if(!en)errors.push(`Word ${i+1} is missing its English meaning.`);const raw=id(w.id??w.wordId??w.termId);if(raw&&seen.has(raw))errors.push(`Duplicate word id "${raw}" in the import.`);if(raw)seen.add(raw);if(Array.isArray(w.exercises)&&w.exercises.length>IMPORT_LIMITS.maxExercisesPerWord)errors.push(`Word ${i+1} contains too many exercises.`)});return{valid:!errors.length,errors,wordCount:ws.length}}
-function packName(data,override=""){const m=meta(data);return text(override)||text(m.name??data.name??data.packName??data.title)||"Imported Word Pack"}
-function packDescription(data){const m=meta(data);return text(m.description??data.description)}
-function exercise(e,w){if(!e||typeof e!=="object")return null;const type=text(e.type??e.exerciseType??"meaning").toLowerCase().replace(/[\s_-]+/g,"");return{...e,type:{meaning:"meaning",definition:"meaning",recall:"recall",recognition:"recall",fillsentence:"fill",sentence:"fill",fill:"fill",chooseword:"choose",multiplechoice:"choose",choose:"choose",production:"production",translate:"production",translation:"production"}[type]||"meaning",wordId:e.wordId??w.id}}
-function normalize(raw,packId,index){const w={...raw};const sourceId=id(raw.id??raw.wordId??raw.termId)||String(index+1);w.id=`${packId}::${sourceId}`;w.word=text(raw.word??raw.term??raw.dutch??raw.text);w.term=text(raw.term??w.word);w.meaning=text(raw.meaning??raw.definition??raw.translation??raw.english);w.dutch=raw.dutch??w.word;w.english=raw.english??w.meaning;w.packId=packId;w.exercises=(Array.isArray(raw.exercises)?raw.exercises:Array.isArray(raw.aiExercises)?raw.aiExercises:Array.isArray(raw.generatedExercises)?raw.generatedExercises:[]).slice(0,IMPORT_LIMITS.maxExercisesPerWord).map(e=>exercise(e,w)).filter(Boolean);w.schemaVersion=3;w.mastery=Number.isFinite(Number(raw.mastery))?Math.max(0,Math.min(100,Number(raw.mastery))):0;w.stats=raw.stats&&typeof raw.stats==="object"?{...raw.stats,byExerciseType:{...(raw.stats.byExerciseType||{})}}:undefined;w.history=Array.isArray(raw.history)?[...raw.history]:Array.isArray(raw.answerHistory)?[...raw.answerHistory]:[];w.dueAt=raw.dueAt??raw.nextReview??raw.nextReviewAt;w.nextReview=raw.nextReview??raw.nextReviewAt??raw.dueAt??Date.now();w.isNew=raw.isNew??(w.mastery<=0);w.createdAt=raw.createdAt??new Date().toISOString();w.updatedAt=new Date().toISOString();w.source=raw.source??"import";w.imported=true;w.importedAt=new Date().toISOString();return w}
-function signature(w){return `${text(w.dutch??w.word??w.term).toLowerCase()}|${text(w.english??w.meaning).toLowerCase()}`}
-function packSignature(data){return wordsOf(data).map(w=>signature(w)).sort().join("\n")}
-function makePack(data,override=""){const m=meta(data),name=packName(data,override),supplied=id(m.packId??data.packId??m.id),now=new Date().toISOString(),ws=wordsOf(data);const packId=supplied||`pack_${slug(name)||"import"}_${Date.now().toString(36)}`;return{packId,id:packId,name,description:packDescription(data),author:m.author??data.author??"",version:m.version??data.packVersion??data.version??"1.0",source:m.source??data.source??"",language:m.language??data.language??"nl",targetLanguage:m.targetLanguage??data.targetLanguage??"en",wordCount:ws.length,contentSignature:packSignature(data),imported:true,importedAt:now,createdAt:m.createdAt??now,updatedAt:now,metadata:{...m},schemaVersion:3}}
-async function existingPack(pack){const packs=await DutchTrainerPacks.getAllPacks();return packs.find(p=>p.contentSignature&&p.contentSignature===pack.contentSignature)||packs.find(p=>pack.packId&&String(p.packId)===String(pack.packId))||packs.find(p=>text(p.name).toLowerCase()===text(pack.name).toLowerCase()&&Number(p.wordCount||0)===Number(pack.wordCount||0))||null}
-function preserve(existing,incoming){if(!existing)return incoming;return{...incoming,mastery:existing.mastery??incoming.mastery,isNew:existing.isNew??incoming.isNew,nextReview:existing.nextReview??incoming.nextReview,dueAt:existing.dueAt??incoming.dueAt,stats:existing.stats??incoming.stats,history:Array.isArray(existing.history)&&existing.history.length?existing.history:incoming.history,createdAt:existing.createdAt??incoming.createdAt}}
-async function savePack(pack){if(window.DutchTrainerPacks?.savePack)return window.DutchTrainerPacks.savePack(pack);throw Error("Pack layer is not initialized.")}
-async function importWordPack(data,options={}){if(ImportState.importing)throw Error("An import is already in progress.");ImportState.importing=true;try{const v=validate(data);if(!v.valid)throw Error(v.errors.join(" "));if(typeof initializeDB==='function')await initializeDB();const incomingPack=makePack(data,options.packName||options.name||"");const duplicate=await existingPack(incomingPack);if(duplicate)throw Error(`This Word Pack is already installed as "${duplicate.name}".`);const existing=await getAllWords();const raw=wordsOf(data),normalized=raw.map((w,i)=>normalize(w,incomingPack.packId,i));const byId=new Map(existing.map(w=>[String(w.id),w]));const bySignature=new Map(existing.map(w=>[`${String(w.packId||"")}::${signature(w)}`,w]));const merged=[];let added=0,updated=0,skipped=0;for(const w of normalized){if(!w.word){skipped++;continue}const old=byId.get(String(w.id))||bySignature.get(`${String(w.packId)}::${signature(w)}`);if(old){merged.push(preserve(old,w));updated++}else{merged.push(w);added++}}const pack={...incomingPack,wordCount:merged.length,updatedAt:new Date().toISOString()};await savePack(pack);await saveWords(merged);if(options.selectImportedPack!==false&&typeof selectVocabularyPack==='function')await selectVocabularyPack(pack.packId);const result={success:true,pack,packId:pack.packId,words:merged,added,updated,skipped,total:merged.length,importedAt:new Date().toISOString()};ImportState.lastResult=result;return result}catch(e){ImportState.lastError=e;throw e}finally{ImportState.importing=false}}
-async function importWordPackFromText(raw,options={}){let data;try{data=JSON.parse(raw)}catch(e){throw Error("The imported file is not valid JSON.")}return importWordPack(data,options)}
-async function importWordPackFile(file,options={}){if(!file)throw Error("No file was selected.");if(file.size>IMPORT_LIMITS.maxFileSize)throw Error("The selected file is too large. Maximum size is 10 MB.");if(!file.name.toLowerCase().endsWith('.json'))throw Error("Please select a JSON Word Pack file.");return importWordPackFromText(await file.text(),options)}
-function preview(data,override=""){const v=validate(data);return v.valid?{valid:true,packName:packName(data,override),wordCount:v.wordCount,description:packDescription(data),version:meta(data).version??data.version??"1.0"}:v}
-function initializeImport(){ImportState.initialized=true;return true}
-window.DutchTrainerImport={version:IMPORT_VERSION,state:ImportState,importWordPack,importFromText:importWordPackFromText,importFile:importWordPackFile,preview,selectPack:async id=>typeof selectVocabularyPack==='function'?selectVocabularyPack(id):false,validate};window.importWordPack=importWordPack;window.importWordPackFile=importWordPackFile;if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initializeImport,{once:true});else initializeImport();
+/* Dutch Vocabulary Trainer V2.4 — core Word Pack import */
+'use strict';
+
+const IMPORT_LIMITS = { maxFileSize: 10 * 1024 * 1024, maxWords: 10000 };
+const text = value => value == null ? '' : String(value).trim();
+const sourceWords = data => Array.isArray(data) ? data : [data?.words, data?.vocabulary, data?.terms, data?.entries, data?.items, data?.data?.words, data?.data?.vocabulary].find(Array.isArray) || [];
+const metadata = data => data?.metadata || data?.pack || data?.wordPack || {};
+const slug = value => text(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+function validate(data) {
+    const errors = [];
+    if (!data || typeof data !== 'object') errors.push('The imported file must contain a Word Pack JSON object.');
+    const words = sourceWords(data);
+    if (!words.length) errors.push('No vocabulary words were found in the imported file.');
+    if (words.length > IMPORT_LIMITS.maxWords) errors.push(`The Word Pack contains ${words.length} words. Maximum is ${IMPORT_LIMITS.maxWords}.`);
+    const seen = new Set();
+    words.forEach((word, index) => {
+        if (!word || typeof word !== 'object') { errors.push(`Word ${index + 1} is not an object.`); return; }
+        const dutch = text(word.dutch ?? word.word ?? word.term ?? word.text);
+        const english = text(word.english ?? word.meaning ?? word.translation ?? word.definition);
+        if (!dutch) errors.push(`Word ${index + 1} is missing its Dutch word.`);
+        if (!english) errors.push(`Word ${index + 1} is missing its English meaning.`);
+        if (word.id != null) {
+            const id = text(word.id);
+            if (seen.has(id)) errors.push(`Duplicate word id "${id}" in the import.`);
+            seen.add(id);
+        }
+    });
+    return { valid: errors.length === 0, errors, wordCount: words.length };
+}
+
+function packInfo(data, override = '') {
+    const meta = metadata(data);
+    const name = text(override) || text(meta.name ?? data.name ?? data.packName ?? data.title) || 'Imported Word Pack';
+    const suppliedId = text(meta.packId ?? data.packId ?? meta.id);
+    const packId = suppliedId || `pack_${slug(name) || 'import'}_${Date.now().toString(36)}`;
+    return {
+        packId,
+        id: packId,
+        name,
+        description: text(meta.description ?? data.description),
+        author: text(meta.author ?? data.author),
+        version: text(meta.version ?? data.packVersion ?? data.version) || '1.0',
+        language: text(meta.language ?? data.language) || 'nl',
+        targetLanguage: text(meta.targetLanguage ?? data.targetLanguage) || 'en',
+        wordCount: sourceWords(data).length,
+        imported: true,
+        importedAt: new Date().toISOString(),
+        schemaVersion: 3
+    };
+}
+
+function normalizeWord(raw, packId, index) {
+    const dutch = text(raw.dutch ?? raw.word ?? raw.term ?? raw.text);
+    const english = text(raw.english ?? raw.meaning ?? raw.translation ?? raw.definition);
+    const sourceId = text(raw.id ?? raw.wordId ?? raw.termId) || String(index + 1);
+    return {
+        ...raw,
+        id: `${packId}::${sourceId}`,
+        dutch,
+        english,
+        word: dutch,
+        term: dutch,
+        meaning: english,
+        packId,
+        mastery: Number.isFinite(Number(raw.mastery)) ? Math.max(0, Math.min(100, Number(raw.mastery))) : 0,
+        isNew: raw.isNew === undefined ? Number(raw.mastery || 0) <= 0 : Boolean(raw.isNew),
+        nextReview: raw.nextReview ?? raw.nextReviewAt ?? raw.dueAt ?? Date.now(),
+        dueAt: raw.dueAt ?? raw.nextReviewAt ?? raw.nextReview,
+        stats: raw.stats && typeof raw.stats === 'object' ? { ...raw.stats } : {},
+        history: Array.isArray(raw.history) ? [...raw.history] : [],
+        schemaVersion: 3,
+        imported: true,
+        importedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+}
+
+async function importWordPack(data, options = {}) {
+    const app = window.DutchTrainer;
+    if (!app?.db || !app?.vocabulary) throw new Error('V2.4 core is not initialized.');
+    const validation = validate(data);
+    if (!validation.valid) throw new Error(validation.errors.join(' '));
+    await app.db.init();
+
+    const pack = packInfo(data, options.packName || options.name);
+    const existingPacks = await app.db.getPacks();
+    if (existingPacks.some(existing => String(existing.packId) === String(pack.packId))) {
+        throw new Error(`This Word Pack is already installed as "${existingPacks.find(existing => String(existing.packId) === String(pack.packId)).name}".`);
+    }
+
+    const words = sourceWords(data).map((word, index) => normalizeWord(word, pack.packId, index));
+    const existingWords = await app.db.getWords();
+    const existingIds = new Set(existingWords.map(word => String(word.id)));
+    const newWords = words.filter(word => !existingIds.has(String(word.id)));
+    await app.db.savePack(pack);
+    await app.db.saveWords(newWords);
+
+    if (options.selectImportedPack !== false) {
+        localStorage.setItem('v24.selectedPackId', pack.packId);
+    }
+
+    return { success: true, pack, packId: pack.packId, words: newWords, added: newWords.length, total: newWords.length };
+}
+
+async function importFromText(raw, options = {}) {
+    let data;
+    try { data = JSON.parse(raw); } catch { throw new Error('The imported file is not valid JSON.'); }
+    return importWordPack(data, options);
+}
+
+async function importFile(file, options = {}) {
+    if (!file) throw new Error('No file was selected.');
+    if (file.size > IMPORT_LIMITS.maxFileSize) throw new Error('The selected file is too large. Maximum size is 10 MB.');
+    if (!file.name.toLowerCase().endsWith('.json')) throw new Error('Please select a JSON Word Pack file.');
+    return importFromText(await file.text(), options);
+}
+
+window.DutchTrainerImport = { version: '2.4.0', limits: IMPORT_LIMITS, validate, importWordPack, importFromText, importFile };

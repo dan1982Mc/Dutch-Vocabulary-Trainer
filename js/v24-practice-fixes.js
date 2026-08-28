@@ -1,0 +1,73 @@
+/* V2.4 practice correctness patch: keep exercise semantics explicit and history question-based. */
+(function () {
+    'use strict';
+    const app = window.DutchTrainer;
+    if (!app) return;
+    const TYPES = ['meaning','recall','fill','choose','production'];
+    const clean = v => String(v ?? '').trim();
+    const norm = v => clean(v).toLocaleLowerCase('nl-NL');
+    const shuffle = a => { const r=[...a]; for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];} return r; };
+    const dutch = w => clean(w?.dutch || w?.word || w?.term || w?.lemma);
+    const english = w => clean(w?.english || w?.meaning || w?.translation || w?.definition);
+    function values(v,out=[]){ if(typeof v==='string'){if(clean(v))out.push(clean(v));} else if(Array.isArray(v))v.forEach(x=>values(x,out)); else if(v&&typeof v==='object')Object.values(v).forEach(x=>values(x,out)); return out; }
+    function forms(w){ return [...new Set([dutch(w),w?.base,w?.lemma,...(Array.isArray(w?.variants)?w.variants:[]),...values(w?.forms)].map(clean).filter(Boolean))]; }
+    function sentences(w){ const out=[]; for(const v of [w?.examples,w?.exampleSentences,w?.sentences,w?.example,w?.sentence]){ if(Array.isArray(v))v.forEach(x=>out.push(typeof x==='string'?x:(x?.nl||x?.sentence||x?.text||''))); else if(typeof v==='string')out.push(v); else if(v&&typeof v==='object')out.push(v.nl||v.sentence||v.text||''); } return [...new Set(out.map(clean).filter(Boolean))]; }
+    function esc(s){return clean(s).replace(/[.*+?^${}()|[\\]\\]/g,'\\$&');}
+    function mask(s,w){ for(const target of forms(w).sort((a,b)=>b.length-a.length)){const re=new RegExp(`(^|[^\\p{L}])${target.trim().split(/\\s+/).map(esc).join('\\s+')}(?=$|[^\\p{L}])`,'iu'); if(re.test(s))return s.replace(re,'$1_____');} return ''; }
+    function fallbackSentence(w){ const a=dutch(w); if(norm(a)==='het evenwicht verliezen')return 'Tijdens het lopen kun je gemakkelijk het evenwicht verliezen.'; if(norm(a)==='omringen')return 'De politie kan het gebied snel omringen.'; if(norm(a)==='tekeergaan')return 'De hond begon wild tekeer te gaan.'; if(norm(a)==='verwaand')return 'Hij kwam nogal verwaand over.'; return `In deze zin wordt het woord ${a} gebruikt.`; }
+    function sentence(w){ for(const s of sentences(w)){const m=mask(s,w);if(m)return m;} return mask(fallbackSentence(w),w); }
+    function levenshtein(a,b){const prev=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){const cur=[i];for(let j=1;j<=b.length;j++)cur[j]=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));for(let j=0;j<cur.length;j++)prev[j]=cur[j];}return prev[b.length];}
+    function almost(value,targetList){const v=norm(value);return targetList.some(t=>{const e=norm(t),d=levenshtein(v,e),n=e.split(/\\s+/).filter(Boolean).length;const limit=n===1?(e.length<=5?1:e.length<=9?2:3):(n<=2?1:2);return d>0&&d<=limit;});}
+    function englishAnswers(w){return [...new Set(english(w).split(';').map(clean).filter(Boolean))];}
+    function englishMatch(value,w){const v=norm(value).replace(/^to\\s+/,'');return englishAnswers(w).some(a=>{const e=norm(a);return v===e||v.replace(/^to\\s+/,'')===e.replace(/^to\\s+/,'');});}
+    function options(answer, vocab, mapper){const result=[answer],seen=new Set([norm(answer)]);for(const w of shuffle(vocab||[])){const x=clean(mapper(w));if(x&&!seen.has(norm(x))){seen.add(norm(x));result.push(x);if(result.length===4)break;}}return shuffle(result);}
+    const exerciseRegistry = app.exercises;
+    if(exerciseRegistry?.register){
+        exerciseRegistry.register('meaning',{label:'Meaning',generate(w,unused,vocab=[]){const a=dutch(w);return{type:'meaning',prompt:'Choose the Dutch word that matches this English meaning.',context:english(w),answer:a,correctAnswer:a,options:options(a,vocab,dutch)};},check(q,a){return norm(a)===norm(q.correctAnswer||q.answer);}});
+        exerciseRegistry.register('recall',{label:'Recall',generate(w){const a=english(w);return{type:'recall',prompt:'What is the English meaning of this Dutch word?',context:dutch(w),answer:a,correctAnswer:a,acceptedAnswers:englishAnswers(w)};},check(q,a){const accepted=q.acceptedAnswers||englishAnswers(q.word||{});const v=norm(a).replace(/^to\\s+/,'');return accepted.some(x=>v===norm(x).replace(/^to\\s+/,''));}});
+        exerciseRegistry.register('fill',{label:'Fill Sentence',generate(w){const a=dutch(w),s=sentence(w);return{type:'fill',prompt:'Fill in the sentence with the appropriate Dutch word.',context:s,answer:a,correctAnswer:a,acceptedAnswers:forms(w)};},check(q,a){const canonical=q.correctAnswer||q.answer||'';if(norm(a)===norm(canonical))return{correct:true,almost:false};return{correct:false,almost:almost(a, q.acceptedAnswers||[canonical])};}});
+        exerciseRegistry.register('choose',{label:'Choose Word',generate(w,unused,vocab=[]){const a=dutch(w),s=sentence(w);return{type:'choose',prompt:'Choose the Dutch word that completes the sentence.',context:s,answer:a,correctAnswer:a,options:options(a,vocab,dutch)};},check(q,a){return norm(a)===norm(q.correctAnswer||q.answer);}});
+    }
+    const oldMastery = app.mastery;
+    if(oldMastery?.recordAnswer){
+        const original = oldMastery.recordAnswer;
+        app.mastery = Object.freeze({
+            ...oldMastery,
+            recordAnswer: async function(word,data={},exercise=null){
+                const result=await original(word,data,exercise);
+                const outcome=data.correct?'correct':data.almost?'almost':'incorrect';
+                if(outcome!=='incorrect') return result;
+                const before=Number(result.masteryBefore ?? word.mastery ?? 0)||0;
+                const after=Math.max(0,before-10);
+                if(after===Number(result.masteryAfter)) return result;
+                word.mastery=after;
+                if('masteryScore' in word)word.masteryScore=after;
+                word.isWeak=after<40;
+                word.status=after>=90?'mastered':after>=70?'strong':after>=50?'familiar':after>0?'weak':'new';
+                if(app.db?.saveWord) await app.db.saveWord(word);
+                if(result.historyEntry){result.historyEntry.masteryBefore=before;result.historyEntry.masteryAfter=after;result.historyEntry.masteryDelta=-10;result.historyEntry.outcome='incorrect';}
+                return {...result,word,masteryBefore:before,masteryAfter:after,masteryDelta:-10};
+            }
+        });
+        window.DutchTrainerMastery=app.mastery;
+    }
+    function renderQuestionBasedHistory(){
+        const area=document.getElementById('historyContent'); if(!area||!app.history?.getSessions)return;
+        Promise.all([app.history.getSessions(),app.vocabulary.getAll()]).then(([sessions,vocab])=>{
+            const byId=new Map(vocab.map(w=>[String(w.id),w])); area.innerHTML='';
+            const rows=[];
+            sessions.forEach(session=>(Array.isArray(session.results)?session.results:[]).forEach((r,i)=>rows.push({date:session.finishedAt||session.completedAt||session.startedAt,word:r.dutch||byId.get(String(r.wordId))?.dutch||'—',exercise:r.exerciseType||'—',mastery:r.mastery,correct:r.correct,almost:r.almost,index:i})));
+            rows.sort((a,b)=>new Date(b.date||0)-new Date(a.date||0));
+            if(!rows.length){area.textContent='No practice history yet.';return;}
+            const table=document.createElement('table');table.className='history-table';
+            table.innerHTML='<thead><tr><th>Date</th><th>Word</th><th>Exercise</th><th>Mastery %</th></tr></thead>';
+            const body=document.createElement('tbody');
+            rows.slice(0,500).forEach(r=>{const tr=document.createElement('tr');[new Date(r.date).toLocaleString(),r.word,r.exercise,r.mastery==null?'—':`${Number(r.mastery)||0}%`].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td);});body.append(tr);});table.append(body);area.append(table);
+        }).catch(e=>console.error('V2.4 history render failed',e));
+    }
+    function bindHistoryOverride(){
+        const button=document.getElementById('historyBtn'); if(button&&!button.dataset.v24HistoryPatch){button.dataset.v24HistoryPatch='1';button.addEventListener('click',()=>setTimeout(renderQuestionBasedHistory,0));}
+    }
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindHistoryOverride,{once:true});else bindHistoryOverride();
+    window.DutchTrainerV24PracticeFixes={renderHistory:renderQuestionBasedHistory};
+})();

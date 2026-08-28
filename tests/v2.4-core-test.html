@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>V2.4 Core Verification</title></head>
+<body>
+<h1>V2.4 Core Verification</h1>
+<p>Open DevTools Console for results.</p>
+<script type="module">
+(async () => {
+    try {
+        await import('../js/app.js');
+        await window.DutchTrainer.ready;
+        const script = document.createElement('script');
+        script.src = './v2.4-core-test.js';
+        script.onload = () => console.log('V2.4 verification test loaded.');
+        script.onerror = () => console.error('Could not load v2.4-core-test.js');
+        document.body.appendChild(script);
+    } catch (error) {
+        console.error('V2.4 app bootstrap failed:', error);
+        window.V2_4_MODULE_ERROR = { file: 'js/app.js', message: error?.message || String(error) };
+    }
+})();
+</script>
+</body>
+</html>
