@@ -1,0 +1,9 @@
+{
+    "name": "Dutch Vocabulary Trainer",
+    "short_name": "Dutch Trainer",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#f4f6f9",
+    "theme_color": "#2563eb",
+    "description": "Offline adaptive Dutch vocabulary trainer"
+}
